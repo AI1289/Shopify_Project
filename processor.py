@@ -1,3 +1,4 @@
+
 import os
 import pandas as pd
 import numpy as np
@@ -58,7 +59,7 @@ def build_description(row, config, col_model, col_voltage, col_power, col_weight
     desc += f"<strong>Weight:</strong> {row[col_weight]} lbs</p>"
     if float(row[col_weight]) > config['weight_threshold']:
         desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
-    desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View on Manufacturer Website</a></p>'
+    desc += '<p><a href=\"https://wilo.com/en/overview.html\" target=\"_blank\">View on Manufacturer Website</a></p>'
     return desc
 
 def process_file(filepath, config, mode):
@@ -73,7 +74,7 @@ def process_file(filepath, config, mode):
     column_map = fuzzy_match_columns(df)
     df = df.rename(columns=column_map)
 
-    # Reference columns safely
+    # Use mapped columns safely
     col_model = column_map['Model']
     col_voltage = column_map['Voltage']
     col_power = column_map['Power']
@@ -104,12 +105,10 @@ def process_file(filepath, config, mode):
             if part_number in ['—', '-', '', 'N/A']:
                 raise Exception(f"Row {idx+1}: Invalid or missing SKU")
 
-            # Pricing
             list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
             price = config['pricing_formula'](list_price)
             cost = config['cost_formula'](list_price)
 
-            # Build fields
             title = f"{model} ({voltage})"
             handle = sanitize_handle(model)
             description = build_description(row, config, col_model, col_voltage, col_power, col_weight)
@@ -121,7 +120,7 @@ def process_file(filepath, config, mode):
                 'Body (HTML)': description if mode == 'full' else '',
                 'Vendor': config['vendor'],
                 'Type': config['product_type'],
-                'Tags': '',
+                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
                 'Published': 'FALSE',
                 'Option1 Name': 'Voltage',
                 'Option1 Value': voltage,
@@ -144,17 +143,17 @@ def process_file(filepath, config, mode):
                 'Image Src': config['image_url'],
                 'Image Position': 1,
                 'Image Alt Text': title,
-                'Gift Card': 'FALSE',
-                'SEO Title': title,
-                'SEO Description': f"Buy {title} online.",
+                # 'Gift Card': 'FALSE',
+                'SEO Title': f"{config['collection']} {model} – {config['vendor']} {config['collection']} Series {voltage}",
+                'SEO Description': f"{config['collection']} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {config['vendor']}.",
                 'Google Shopping / Google Product Category': '',
                 'Google Shopping / Gender': '',
                 'Google Shopping / Age Group': '',
-                'Google Shopping / MPN': part_number,
+                # 'Google Shopping / MPN': part_number,
                 'Google Shopping / AdWords Grouping': '',
                 'Google Shopping / AdWords Labels': '',
-                'Google Shopping / Condition': 'new',
-                'Google Shopping / Custom Product': 'TRUE',
+                # 'Google Shopping / Condition': 'new',
+                # 'Google Shopping / Custom Product': 'TRUE',
                 'Google Shopping / Custom Label 0': '',
                 'Google Shopping / Custom Label 1': '',
                 'Google Shopping / Custom Label 2': '',

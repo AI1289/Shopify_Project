@@ -19,24 +19,44 @@ def main():
     print("=" * 60)
 
     files = list_files()
-    choice = input("\nEnter file number to load: ")
-    try:
-        file_idx = int(choice) - 1
-        filename = files[file_idx]
-    except (IndexError, ValueError):
-        print("Invalid selection.")
-        sys.exit(1)
+    filename = None
+    while True:
+        choice = input("\nEnter file number to load: ")
+        try:
+            file_idx = int(choice) - 1
+            filename = files[file_idx]
+            break
+        except (IndexError, ValueError):
+            print("Invalid selection. Please enter a valid number from the list.")
 
     print(f"\n✅ File selected: {filename}")
+
+    # Input with fallbacks
+    image_url = input("Enter Image URL for all products: ").strip()
+    vendor = input("Vendor name (default: Wilo): ").strip() or "Wilo"
+    product_type = input("Product category (default: Booster Pump Systems): ").strip() or "Booster Pump Systems"
+    collection = input("Enter Collection (e.g., Helix V, MVI): ").strip() or "General"
 
     config = {
         "pricing_formula": lambda lp: round(lp * 0.36 * 1.21, 2),
         "cost_formula": lambda lp: round(lp * 0.36, 2),
         "weight_threshold": 150.0,
-        "image_url": input("Enter Image URL for all products: "),
-        "vendor": input("Vendor name (e.g., Wilo): ") or "Wilo",
-        "product_type": input("Product category (e.g., Booster Pumps): ") or "Booster Pumps"
+        "image_url": image_url,
+        "vendor": vendor,
+        "product_type": product_type,
+        "collection": collection
     }
+
+    # Confirm settings before continuing
+    print("\nConfiguration Summary:")
+    for k, v in config.items():
+        if not callable(v):
+            print(f"  {k}: {v}")
+    print(f"  File: {filename}")
+    proceed = input("Proceed with processing? [Y/n]: ").strip().lower()
+    if proceed == 'n':
+        print("❌ Operation cancelled.")
+        sys.exit(0)
 
     output_mode = input("\nChoose export type:\n  1. Full Shopify import (53 columns)\n  2. Description-only update\nSelect [1/2]: ")
     if output_mode not in ['1', '2']:
