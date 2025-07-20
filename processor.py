@@ -4,10 +4,10 @@ import numpy as np
 from datetime import datetime
 from fuzzywuzzy import fuzz
 
-# Supported input file types
+# Supported file formats
 SUPPORTED_EXT = ['.csv', '.xls', '.xlsx']
 
-# Shopify 53-column header
+# Shopify 53-column export format
 SHOPIFY_HEADERS = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
@@ -23,10 +23,10 @@ SHOPIFY_HEADERS = [
     'Cost per item', 'Price / International', 'Compare At Price / International', 'Status'
 ]
 
-# Fuzzy matching config
+# Threshold for fuzzy matching column headers
 FUZZY_THRESHOLD = 70
 
-# Expected column names in supplier sheet
+# Supplier column mapping to expected schema
 DEFAULT_MAP = {
     'Model': ['Model', 'Product Name', 'Item Name'],
     'Voltage': ['Voltage', 'Power Spec'],
@@ -36,6 +36,7 @@ DEFAULT_MAP = {
     'Article Number': ['Part Number', 'SKU', 'Item Code']
 }
 
+# Fuzzy match column headers
 def fuzzy_match_columns(df):
     mapping = {}
     for key, aliases in DEFAULT_MAP.items():
@@ -52,9 +53,11 @@ def fuzzy_match_columns(df):
         raise Exception(f"Missing required columns: {missing}")
     return mapping
 
+# Convert product name into Shopify-compatible handle
 def sanitize_handle(name):
     return name.strip().lower().replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
 
+# Build HTML product description
 def build_description(row, config):
     desc = f"<p><strong>Model:</strong> {row['Model']}<br>"
     desc += f"<strong>Voltage:</strong> {row['Voltage']}<br>"
@@ -62,9 +65,10 @@ def build_description(row, config):
     desc += f"<strong>Weight:</strong> {row['Weight']} lbs</p>"
     if float(row['Weight']) > config['weight_threshold']:
         desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
+    desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View on Manufacturer Website</a></p>'
     return desc
 
-# Main logic begins here
+# Main function to process the supplier file
 def process_file(filepath, config, mode):
     ext = os.path.splitext(filepath)[1].lower()
     if ext not in SUPPORTED_EXT:
@@ -86,25 +90,38 @@ def process_file(filepath, config, mode):
             model = str(row['Model']).strip()
             voltage = str(row['Voltage']).strip()
             power = row['Power']
-            weight = float(row['Weight'])
-            list_price = float(row['List Price'])
-            part_number = str(row['Article Number']).strip()
 
+            # Validate and convert weight
+            try:
+                weight_raw = str(row['Weight']).strip()
+                if weight_raw in ['—', '-', '', 'N/A']:
+                    raise ValueError("Invalid or missing weight")
+                weight = float(weight_raw)
+            except:
+                raise Exception(f"Row {idx+1}: Invalid or missing weight")
+
+            # Validate SKU
+            part_number = str(row['Article Number']).strip()
+            if part_number in ['—', '-', '', 'N/A']:
+                raise Exception(f"Row {idx+1}: Invalid or missing SKU")
+
+            # Pricing
+            list_price = float(row['List Price']) if pd.notna(row['List Price']) and str(row['List Price']).strip() else 0.0
             price = config['pricing_formula'](list_price)
             cost = config['cost_formula'](list_price)
 
+            # Build product fields
             title = f"{model} ({voltage})"
             handle = sanitize_handle(model)
             description = build_description(row, config)
-            requires_shipping = 'TRUE' if weight > 0 else 'FALSE'
-            physical_product = 'FALSE' if weight > config['weight_threshold'] else 'TRUE'
+            requires_shipping = 'FALSE' if weight > config['weight_threshold'] else 'TRUE'
 
-            if not part_number:
-                raise Exception(f"Row {idx+1}: Missing SKU/Article Number for model: {model}")
+            # Ensure handle is not reused
             if handle in used_handles:
                 raise Exception(f"Row {idx+1}: Duplicate handle detected: {handle}")
             used_handles.add(handle)
 
+            # Build row
             shopify_row = {
                 'Handle': handle,
                 'Title': title,
@@ -156,7 +173,7 @@ def process_file(filepath, config, mode):
                 'Cost per item': cost,
                 'Price / International': '',
                 'Compare At Price / International': '',
-                'Status': 'draft' if physical_product == 'TRUE' else 'archived'
+                'Status': 'draft'
             }
 
             if mode == 'description-only':
