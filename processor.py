@@ -109,7 +109,7 @@ def process_file(filepath, config, mode):
             # Validate and convert weight
             try:
                 weight_raw = str(row[col_weight]).strip()
-                if weight_raw in ['—', '-', '', 'N/A']:
+                if weight_raw in ['—', '-', '', 'N/A', 'CF']:
                     raise ValueError("Invalid or missing weight")
                 weight = float(weight_raw)
             except:
@@ -117,7 +117,7 @@ def process_file(filepath, config, mode):
 
             # Validate SKU
             part_number = str(row[col_sku]).strip()
-            if part_number in ['—', '-', '', 'N/A']:
+            if part_number in ['—', '-', '', 'N/A', 'CF']:
                 raise Exception(f"Row {idx+1}: Invalid or missing SKU")
 
             list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
