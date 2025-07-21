@@ -4,6 +4,18 @@ import pandas as pd
 import time
 from processor import process_file
 
+import json
+
+# Load formulas.json if present
+formulas = {}
+try:
+    with open("formulas.json", "r") as f:
+        formulas = json.load(f)
+        print("✅ Loaded formulas from formulas.json")
+except FileNotFoundError:
+    print("⚠️ formulas.json not found. Using default formulas.")
+
+
 def list_files():
     files = [f for f in os.listdir('.') if f.endswith(('.csv', '.xls', '.xlsx'))]
     if not files:
@@ -44,7 +56,10 @@ def main():
         "image_url": image_url,
         "vendor": vendor,
         "product_type": product_type,
-        "collection": collection
+        "collection": collection,
+        "pricing_formula": formulas.get("pricing_formula", "list_price * 0.36 * 1.21"),
+        "cost_formula": formulas.get("cost_formula", "list_price * 0.36"),
+        "grams_formula": formulas.get("grams_formula", "weight * 453.592")
     }
 
     # Confirm settings before continuing

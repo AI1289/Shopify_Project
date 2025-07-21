@@ -3,6 +3,21 @@ import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
+def safe_eval(expr, context):
+    import ast
+    try:
+        tree = ast.parse(expr, mode='eval')
+        allowed = (
+            ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
+            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub
+        )
+        if not all(isinstance(node, allowed) for node in ast.walk(tree)):
+            raise ValueError("Unsafe expression")
+        return eval(compile(tree, "<string>", "eval"), {}, context)
+    except Exception as e:
+        raise ValueError(f"Invalid formula: {e}")
+
 from fuzzywuzzy import fuzz
 
 SUPPORTED_EXT = ['.csv', '.xls', '.xlsx']
@@ -106,8 +121,8 @@ def process_file(filepath, config, mode):
                 raise Exception(f"Row {idx+1}: Invalid or missing SKU")
 
             list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
-            price = config['pricing_formula'](list_price)
-            cost = config['cost_formula'](list_price)
+            price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
+            cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
 
             title = f"{model} ({voltage})"
             handle = sanitize_handle(model)
@@ -129,7 +144,7 @@ def process_file(filepath, config, mode):
                 'Option3 Name': '',
                 'Option3 Value': '',
                 'Variant SKU': part_number,
-                'Variant Grams': int(round(weight * 453.592)),
+                'Variant Grams': int(round(safe_eval(config.get('grams_formula', 'weight * 453.592'), {'weight': weight}), 4)),
                 'Variant Inventory Tracker': 'shopify',
                 'Variant Inventory Qty': '',
                 'Variant Inventory Policy': 'deny',
