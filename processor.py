@@ -4,34 +4,18 @@ import numpy as np
 from datetime import datetime
 from fuzzywuzzy import fuzz
 
-# def safe_eval(expr, context):
-#     import ast
-#     try:
-#         tree = ast.parse(expr, mode='eval')
-#         allowed = (
-#             ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
-#             ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub
-#         )
-#         if not all(isinstance(node, allowed) for node in ast.walk(tree)):
-#             raise ValueError("Unsafe expression")
-#         return eval(compile(tree, "<string>", "eval"), {}, context)
-#     except Exception as e:
-#         raise ValueError(f"Invalid formula: {e}")
-
 def safe_eval(expr, context):
     import ast
     try:
-        print("Evaluating:", expr)
         tree = ast.parse(expr, mode='eval')
         allowed = (
             ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
             ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub,
-            ast.Call, ast.FormattedValue, ast.JoinedStr, ast.Constant  # ← ADD THIS
+            ast.Call, ast.FormattedValue, ast.JoinedStr, ast.Constant  # ← THIS IS CRUCIAL
         )
         for node in ast.walk(tree):
             if not isinstance(node, allowed):
-                print("❌ Blocked AST Node:", type(node).__name__)
-                raise ValueError(f"Unsafe expression: {expr}")
+                raise ValueError(f"Unsafe expression: {expr} [blocked {type(node).__name__}]")
         return eval(compile(tree, "<string>", "eval"), {}, context)
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
@@ -219,11 +203,11 @@ def process_file(filepath, config, mode):
 
             row_dict = {
                 'Handle': handle,
-                'Title': title if i == 0 else '',
-                'Body (HTML)': description if i == 0 and mode == 'full' else '',
-                'Vendor': vendor_name if i == 0 else '',
-                'Type': product_type if i == 0 else '',
-                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}" if i == 0 else '',
+                'Title': title,
+                'Body (HTML)': description if mode == 'full' else '',
+                'Vendor': vendor_name,
+                'Type': product_type,
+                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
                 'Published': 'FALSE',
                 'Option1 Name': 'Voltage',
                 'Option1 Value': voltage,
@@ -246,8 +230,8 @@ def process_file(filepath, config, mode):
                 'Image Src': config['image_url'] if i == 0 else '',
                 'Image Position': 1 if i == 0 else '',
                 'Image Alt Text': '' if i > 0 else title,
-                'SEO Title': seo_title if i == 0 else '',
-                'SEO Description': seo_description if i == 0 else '',
+                'SEO Title': seo_title,
+                'SEO Description': seo_description,
                 'Google Shopping / Gender': '',
                 'Google Shopping / Age Group': '',
                 'Google Shopping / AdWords Grouping': '',
