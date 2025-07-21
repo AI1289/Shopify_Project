@@ -1,9 +1,9 @@
+
 import os
 import sys
 import pandas as pd
 import time
 from processor import process_file
-
 import json
 
 # Load formulas.json if present
@@ -14,7 +14,6 @@ try:
         print("✅ Loaded formulas from formulas.json")
 except FileNotFoundError:
     print("⚠️ formulas.json not found. Using default formulas.")
-
 
 def list_files():
     files = [f for f in os.listdir('.') if f.endswith(('.csv', '.xls', '.xlsx'))]
@@ -27,7 +26,7 @@ def list_files():
     return files
 
 def main():
-    print("\n🚀 SHOPIFY IMPORT CLI TOOL v1.0")
+    print("\n🚀 SHOPIFY IMPORT CLI TOOL v2")
     print("=" * 60)
 
     files = list_files()
@@ -50,19 +49,26 @@ def main():
     collection = input("Enter Collection (e.g., Helix V, MVI): ").strip() or "General"
 
     config = {
-        # "pricing_formula": lambda lp: round(lp * 0.36 * 1.21, 2),
-        # "cost_formula": lambda lp: round(lp * 0.36, 2),
+        "pricing_formula": formulas.get("pricing_formula", "round(list_price * 0.36 * 1.15, 2)"),
+        "cost_formula": formulas.get("cost_formula", "round(list_price * 0.36, 2)"),
+        "grams_formula": formulas.get("grams_formula", "round(weight * 453.592, 4)"),
+        "vendor_formula": formulas.get("vendor_formula", "'{vendor}'"),
+        "product_type_formula": formulas.get("product_type_formula", "'{product_type}'"),
+        "seo_title_formula": formulas.get(
+            "seo_title_formula",
+            "f'{collection} {model} – {vendor} {collection} Series {voltage}'"
+        ),
+        "seo_description_formula": formulas.get(
+            "seo_description_formula",
+            "f'{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.'"
+        ),
         "weight_threshold": 150.0,
         "image_url": image_url,
         "vendor": vendor,
         "product_type": product_type,
-        "collection": collection,
-        "pricing_formula": formulas.get("pricing_formula", "list_price * 0.36 * 1.15"),
-        "cost_formula": formulas.get("cost_formula", "list_price * 0.36"),
-        "grams_formula": formulas.get("grams_formula", "weight * 453.592")
+        "collection": collection
     }
 
-    # Confirm settings before continuing
     print("\nConfiguration Summary:")
     for k, v in config.items():
         if not callable(v):

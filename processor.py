@@ -4,19 +4,38 @@ import numpy as np
 from datetime import datetime
 from fuzzywuzzy import fuzz
 
+# def safe_eval(expr, context):
+#     import ast
+#     try:
+#         tree = ast.parse(expr, mode='eval')
+#         allowed = (
+#             ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
+#             ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub
+#         )
+#         if not all(isinstance(node, allowed) for node in ast.walk(tree)):
+#             raise ValueError("Unsafe expression")
+#         return eval(compile(tree, "<string>", "eval"), {}, context)
+#     except Exception as e:
+#         raise ValueError(f"Invalid formula: {e}")
+
 def safe_eval(expr, context):
     import ast
     try:
+        print("Evaluating:", expr)
         tree = ast.parse(expr, mode='eval')
         allowed = (
             ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
-            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub
+            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub,
+            ast.Call, ast.FormattedValue, ast.JoinedStr, ast.Constant  # ← ADD THIS
         )
-        if not all(isinstance(node, allowed) for node in ast.walk(tree)):
-            raise ValueError("Unsafe expression")
+        for node in ast.walk(tree):
+            if not isinstance(node, allowed):
+                print("❌ Blocked AST Node:", type(node).__name__)
+                raise ValueError(f"Unsafe expression: {expr}")
         return eval(compile(tree, "<string>", "eval"), {}, context)
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
+
 
 SUPPORTED_EXT = ['.csv', '.xls', '.xlsx']
 
@@ -104,7 +123,7 @@ def process_file(filepath, config, mode):
         for idx in range(len(group)):
             try:
                 row = group.iloc[idx]
-                weight_raw = str(row[col_weight]).strip()
+                weight_raw = str(row[col_weight]).strip().replace(',', '')
                 part_number = str(row[col_sku]).strip()
                 if weight_raw in ['—', '-', '', 'N/A', 'CF'] or part_number in ['—', '-', '', 'N/A', 'CF']:
                     continue
@@ -118,7 +137,7 @@ def process_file(filepath, config, mode):
         for i, row_idx in enumerate(valid_rows):
             row = group.iloc[row_idx]
             voltage = str(row[col_voltage]).strip()
-            weight_raw = str(row[col_weight]).strip()
+            weight_raw = str(row[col_weight]).strip().replace(',', '')
             part_number = str(row[col_sku]).strip()
 
             try:
@@ -137,14 +156,73 @@ def process_file(filepath, config, mode):
 
             title = f"{model} ({voltage})"
             description = build_description(row, config, col_model, col_voltage, col_power, col_weight)
+
+            # --- Safe context for evaluating SEO formulas ---
+            context = {
+                'collection': config['collection'],
+                'model': model,
+                'vendor': config['vendor'],
+                'voltage': voltage,
+                'description': description,
+                'price': price
+            }
+
+            seo_title = safe_eval(
+                config.get('seo_title_formula',
+                "f\"{collection} {model} – {vendor} {collection} Series {voltage}\""),
+                context
+            )
+
+            seo_description = safe_eval(
+                config.get('seo_description_formula',
+                "f\"{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\""),
+                context
+            )
+
+            vendor_name = safe_eval(
+                config.get('vendor_formula', "'{vendor}'"),
+                {'vendor': config['vendor']}
+            )
+
+            product_type = safe_eval(
+                config.get('product_type_formula', "'{product_type}'"),
+                {'product_type': config['product_type']}
+            )
+
+
+            # --- Safe context for evaluating SEO formulas ---
+            context = {
+                'collection': config['collection'],
+                'model': model,
+                'vendor': config['vendor'],
+                'voltage': voltage,
+                'description': description,
+                'price': price
+            }
+
+            seo_title = safe_eval(
+                config.get('seo_title_formula',
+                "f'{collection} {model} – {vendor} {collection} Series {voltage}'"),
+                context
+            )
+
+            seo_description = safe_eval(
+                config.get('seo_description_formula',
+                "f'{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.'"),
+                context
+            )
+
+            vendor_name = safe_eval(config.get('vendor_formula', "'{vendor}'"), {'vendor': config['vendor']})
+            product_type = safe_eval(config.get('product_type_formula', "'{product_type}'"), {'product_type': config['product_type']})
+
             requires_shipping = 'FALSE' if weight > config['weight_threshold'] else 'TRUE'
 
             row_dict = {
                 'Handle': handle,
                 'Title': title if i == 0 else '',
                 'Body (HTML)': description if i == 0 and mode == 'full' else '',
-                'Vendor': config['vendor'] if i == 0 else '',
-                'Type': config['product_type'] if i == 0 else '',
+                'Vendor': vendor_name if i == 0 else '',
+                'Type': product_type if i == 0 else '',
                 'Tags': f"{config['vendor']}, {config['collection']}-{voltage}" if i == 0 else '',
                 'Published': 'FALSE',
                 'Option1 Name': 'Voltage',
@@ -168,9 +246,8 @@ def process_file(filepath, config, mode):
                 'Image Src': config['image_url'] if i == 0 else '',
                 'Image Position': 1 if i == 0 else '',
                 'Image Alt Text': '' if i > 0 else title,
-                'SEO Title': f"{config['collection']} {model} – {config['vendor']} {config['collection']} Series {voltage}" if i == 0 else '',
-                'SEO Description': f"{config['collection']} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {config['vendor']}." if i == 0 else '',
-                'Google Shopping / Google Product Category': '',
+                'SEO Title': seo_title if i == 0 else '',
+                'SEO Description': seo_description if i == 0 else '',
                 'Google Shopping / Gender': '',
                 'Google Shopping / Age Group': '',
                 'Google Shopping / AdWords Grouping': '',

@@ -1,5 +1,9 @@
 {
-  "pricing_formula": "list_price * 0.36 * 1.15",
-  "cost_formula": "list_price * 0.36",
-  "grams_formula": "weight * 453.592"
+  "pricing_formula": "round(list_price * 0.36 * 1.15, 2)",
+  "cost_formula": "round(list_price * 0.36, 2)",
+  "grams_formula": "round(weight * 453.592, 4)",
+  "vendor_formula": "vendor",
+  "product_type_formula": "product_type",
+  "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series {voltage}'",
+  "seo_description_formula": "f\"{collection} {model} {description} {price} USD\\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\""
 }
