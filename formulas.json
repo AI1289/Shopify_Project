@@ -1,5 +1,5 @@
 {
-  "pricing_formula": "list_price * 0.36 * 1.21",
+  "pricing_formula": "list_price * 0.36 * 1.15",
   "cost_formula": "list_price * 0.36",
   "grams_formula": "weight * 453.592"
 }

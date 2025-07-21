@@ -50,14 +50,14 @@ def main():
     collection = input("Enter Collection (e.g., Helix V, MVI): ").strip() or "General"
 
     config = {
-        "pricing_formula": lambda lp: round(lp * 0.36 * 1.21, 2),
-        "cost_formula": lambda lp: round(lp * 0.36, 2),
+        # "pricing_formula": lambda lp: round(lp * 0.36 * 1.21, 2),
+        # "cost_formula": lambda lp: round(lp * 0.36, 2),
         "weight_threshold": 150.0,
         "image_url": image_url,
         "vendor": vendor,
         "product_type": product_type,
         "collection": collection,
-        "pricing_formula": formulas.get("pricing_formula", "list_price * 0.36 * 1.21"),
+        "pricing_formula": formulas.get("pricing_formula", "list_price * 0.36 * 1.15"),
         "cost_formula": formulas.get("cost_formula", "list_price * 0.36"),
         "grams_formula": formulas.get("grams_formula", "weight * 453.592")
     }

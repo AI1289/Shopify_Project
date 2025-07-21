@@ -1,8 +1,8 @@
-
 import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from fuzzywuzzy import fuzz
 
 def safe_eval(expr, context):
     import ast
@@ -17,8 +17,6 @@ def safe_eval(expr, context):
         return eval(compile(tree, "<string>", "eval"), {}, context)
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
-
-from fuzzywuzzy import fuzz
 
 SUPPORTED_EXT = ['.csv', '.xls', '.xlsx']
 
@@ -74,7 +72,7 @@ def build_description(row, config, col_model, col_voltage, col_power, col_weight
     desc += f"<strong>Weight:</strong> {row[col_weight]} lbs</p>"
     if float(row[col_weight]) > config['weight_threshold']:
         desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
-    desc += '<p><a href=\"https://wilo.com/en/overview.html\" target=\"_blank\">View on Manufacturer Website</a></p>'
+    desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View on Manufacturer Website</a></p>'
     return desc
 
 def process_file(filepath, config, mode):
@@ -83,13 +81,12 @@ def process_file(filepath, config, mode):
         raise Exception("Unsupported file format.")
 
     df = pd.read_excel(filepath) if ext in ['.xls', '.xlsx'] else pd.read_csv(filepath)
-    if len(df) > 1000:
+    if len(df) > 1500:
         print("Warning: File has more than 1000 rows.")
 
     column_map = fuzzy_match_columns(df)
     df = df.rename(columns=column_map)
 
-    # Use mapped columns safely
     col_model = column_map['Model']
     col_voltage = column_map['Voltage']
     col_power = column_map['Power']
@@ -100,42 +97,55 @@ def process_file(filepath, config, mode):
     rows = []
     errors = []
 
-    for idx, row in df.iterrows():
-        try:
-            model = str(row[col_model]).strip()
-            voltage = str(row[col_voltage]).strip()
-            power = row[col_power]
-
-            # Validate and convert weight
+    # VARIANT GROUPING START
+    grouped = df.groupby('Model')
+    for model, group in grouped:
+        valid_rows = []
+        for idx in range(len(group)):
             try:
+                row = group.iloc[idx]
                 weight_raw = str(row[col_weight]).strip()
-                if weight_raw in ['—', '-', '', 'N/A', 'CF']:
-                    raise ValueError("Invalid or missing weight")
+                part_number = str(row[col_sku]).strip()
+                if weight_raw in ['—', '-', '', 'N/A', 'CF'] or part_number in ['—', '-', '', 'N/A', 'CF']:
+                    continue
+                valid_rows.append(idx)
+            except:
+                continue
+        if not valid_rows:
+            continue
+
+        handle = sanitize_handle(model)
+        for i, row_idx in enumerate(valid_rows):
+            row = group.iloc[row_idx]
+            voltage = str(row[col_voltage]).strip()
+            weight_raw = str(row[col_weight]).strip()
+            part_number = str(row[col_sku]).strip()
+
+            try:
                 weight = float(weight_raw)
             except:
-                raise Exception(f"Row {idx+1}: Invalid or missing weight")
+                continue
 
-            # Validate SKU
-            part_number = str(row[col_sku]).strip()
-            if part_number in ['—', '-', '', 'N/A', 'CF']:
-                raise Exception(f"Row {idx+1}: Invalid or missing SKU")
+            try:
+                list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
+            except:
+                list_price = 0.0
 
-            list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
             price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
+            grams = int(round(safe_eval(config.get('grams_formula', 'weight * 453.592'), {'weight': weight}), 4))
 
             title = f"{model} ({voltage})"
-            handle = sanitize_handle(model)
             description = build_description(row, config, col_model, col_voltage, col_power, col_weight)
             requires_shipping = 'FALSE' if weight > config['weight_threshold'] else 'TRUE'
 
-            shopify_row = {
+            row_dict = {
                 'Handle': handle,
-                'Title': title,
-                'Body (HTML)': description if mode == 'full' else '',
-                'Vendor': config['vendor'],
-                'Type': config['product_type'],
-                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
+                'Title': title if i == 0 else '',
+                'Body (HTML)': description if i == 0 and mode == 'full' else '',
+                'Vendor': config['vendor'] if i == 0 else '',
+                'Type': config['product_type'] if i == 0 else '',
+                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}" if i == 0 else '',
                 'Published': 'FALSE',
                 'Option1 Name': 'Voltage',
                 'Option1 Value': voltage,
@@ -144,7 +154,7 @@ def process_file(filepath, config, mode):
                 'Option3 Name': '',
                 'Option3 Value': '',
                 'Variant SKU': part_number,
-                'Variant Grams': int(round(safe_eval(config.get('grams_formula', 'weight * 453.592'), {'weight': weight}), 4)),
+                'Variant Grams': grams,
                 'Variant Inventory Tracker': 'shopify',
                 'Variant Inventory Qty': '',
                 'Variant Inventory Policy': 'deny',
@@ -155,26 +165,22 @@ def process_file(filepath, config, mode):
                 'Variant Requires Shipping': requires_shipping,
                 'Variant Taxable': 'TRUE',
                 'Variant Barcode': '',
-                'Image Src': config['image_url'],
-                'Image Position': 1,
-                'Image Alt Text': title,
-                # 'Gift Card': 'FALSE',
-                'SEO Title': f"{config['collection']} {model} – {config['vendor']} {config['collection']} Series {voltage}",
-                'SEO Description': f"{config['collection']} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {config['vendor']}.",
+                'Image Src': config['image_url'] if i == 0 else '',
+                'Image Position': 1 if i == 0 else '',
+                'Image Alt Text': '' if i > 0 else title,
+                'SEO Title': f"{config['collection']} {model} – {config['vendor']} {config['collection']} Series {voltage}" if i == 0 else '',
+                'SEO Description': f"{config['collection']} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {config['vendor']}." if i == 0 else '',
                 'Google Shopping / Google Product Category': '',
                 'Google Shopping / Gender': '',
                 'Google Shopping / Age Group': '',
-                # 'Google Shopping / MPN': part_number,
                 'Google Shopping / AdWords Grouping': '',
                 'Google Shopping / AdWords Labels': '',
-                # 'Google Shopping / Condition': 'new',
-                # 'Google Shopping / Custom Product': 'TRUE',
                 'Google Shopping / Custom Label 0': '',
                 'Google Shopping / Custom Label 1': '',
                 'Google Shopping / Custom Label 2': '',
                 'Google Shopping / Custom Label 3': '',
                 'Google Shopping / Custom Label 4': '',
-                'Variant Image': config['image_url'],
+                'Variant Image': config['image_url'] if i == 0 else '',
                 'Variant Weight Unit': 'lb',
                 'Variant Tax Code': '',
                 'Cost per item': cost,
@@ -184,15 +190,13 @@ def process_file(filepath, config, mode):
             }
 
             if mode == 'description-only':
-                shopify_row = {
+                row_dict = {
                     'Handle': handle,
                     'Body (HTML)': description
                 }
 
-            rows.append(shopify_row)
-
-        except Exception as e:
-            errors.append(str(e))
+            rows.append(row_dict)
+    # VARIANT GROUPING END
 
     if not rows:
         raise Exception("No valid rows to export.")
@@ -201,12 +205,10 @@ def process_file(filepath, config, mode):
     outdir = "exports"
     os.makedirs(outdir, exist_ok=True)
 
-    if mode == 'description-only':
-        out_file = os.path.join(outdir, f"shopify_descriptions_{ts}.csv")
-        pd.DataFrame(rows).to_csv(out_file, index=False)
-    else:
-        out_file = os.path.join(outdir, f"shopify_import_{ts}.csv")
-        pd.DataFrame(rows, columns=SHOPIFY_HEADERS).to_csv(out_file, index=False)
+    out_file = os.path.join(outdir, f"shopify_import_{ts}.csv") if mode == 'full' \
+        else os.path.join(outdir, f"shopify_descriptions_{ts}.csv")
+
+    pd.DataFrame(rows, columns=SHOPIFY_HEADERS if mode == 'full' else rows[0].keys()).to_csv(out_file, index=False)
 
     if errors:
         error_log = os.path.join(outdir, f"errors_{ts}.log")
