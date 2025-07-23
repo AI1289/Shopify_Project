@@ -51,7 +51,7 @@ def main():
     config = {
         "pricing_formula": formulas.get("pricing_formula", "round(list_price * 0.36 * 1.15, 2)"),
         "cost_formula": formulas.get("cost_formula", "round(list_price * 0.36, 2)"),
-        "grams_formula": formulas.get("grams_formula", "round(weight * 453.592, 4)"),
+        "grams_formula": formulas.get("grams_formula", "round(weight * 453.592)"),
         "vendor_formula": formulas.get("vendor_formula", "'{vendor}'"),
         "product_type_formula": formulas.get("product_type_formula", "'{product_type}'"),
         "seo_title_formula": formulas.get(

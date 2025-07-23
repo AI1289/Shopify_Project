@@ -117,15 +117,8 @@ def process_file(filepath, config, mode):
                 row = group.iloc[idx]
                 weight_raw = str(row[col_weight]).strip().replace(',', '')
                 part_number = str(row[col_sku]).strip()
-
-                # Compute list_price early
-                try:
-                    list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
-                except:
-                    list_price = 0.0
-
                 if weight_raw in ['—', '-', '', 'N/A', 'CF'] or part_number in ['—', '-', '', 'N/A', 'CF'] or not list_price:
-                    print(f"⚠️ Skipping row: Invalid weight, part number, or list price → Weight: {weight_raw}, SKU: {part_number}, Price: {list_price}")
+                    print(f"⚠️ Skipping row: Invalid weight or part number → Weight: {weight_raw}, SKU: {part_number}")
                     continue
                 valid_rows.append(idx)
             except:
@@ -141,7 +134,7 @@ def process_file(filepath, config, mode):
             part_number = str(row[col_sku]).strip()
 
             try:
-                weight = int(str(row[col_weight]).split('.')[0])  # truncate to left of decimal & override Excel’s float representation cleanly
+                weight = float(weight_raw)
             except:
                 continue
 
@@ -152,10 +145,8 @@ def process_file(filepath, config, mode):
 
             price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
-
-            # grams = safe_eval(config.get('grams_formula', 'int(round(weight * 453.592))'), {'weight': weight})
-            # grams = int(round(int(row[col_weight]) * 453.592))
-            grams = int(round(float(row[col_weight]) * 453.592))
+            # grams = int(round(safe_eval(config.get('grams_formula', 'weight * 453.592'), {'weight': weight}), 4))
+            grams = safe_eval(config.get('grams_formula', 'int(round(weight * 453.592))'), {'weight': weight})
 
 
             title = f"{model}"
