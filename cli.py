@@ -1,10 +1,20 @@
-
 import os
 import sys
+import importlib
 import pandas as pd
 import time
-from processor import process_file
 import json
+
+# --- Processor Selection ---
+def select_processor():
+    """
+    Prompt user to choose which processor module to use.
+    """
+    print("Choose processor version:")
+    print("  1) Standard (processor.py)")
+    print("  2) No-weight (processor_no_weight.py)")
+    choice = input("Enter 1 or 2: ").strip()
+    return 'processor_no_weight' if choice == '2' else 'processor'
 
 # Load formulas.json if present
 formulas = {}
@@ -14,6 +24,22 @@ try:
         print("✅ Loaded formulas from formulas.json")
 except FileNotFoundError:
     print("⚠️ formulas.json not found. Using default formulas.")
+
+# Choose processor module
+module_name = select_processor()
+try:
+    processor_mod = importlib.import_module(module_name)
+except ImportError:
+    print(f"Error: could not import '{module_name}'. Make sure the file exists.")
+    sys.exit(1)
+
+# Get the process_file function from the chosen module
+process_file = getattr(processor_mod, 'process_file', None)
+if process_file is None:
+    print(f"Error: 'process_file' not found in module '{module_name}'.")
+    sys.exit(1)
+
+# CLI Main Flow
 
 def list_files():
     files = [f for f in os.listdir('.') if f.endswith(('.csv', '.xls', '.xlsx'))]
@@ -25,12 +51,12 @@ def list_files():
         print(f"  {i + 1}. {file}")
     return files
 
+
 def main():
     print("\n🚀 SHOPIFY IMPORT CLI TOOL v2")
     print("=" * 60)
 
     files = list_files()
-    filename = None
     while True:
         choice = input("\nEnter file number to load: ")
         try:
@@ -38,11 +64,10 @@ def main():
             filename = files[file_idx]
             break
         except (IndexError, ValueError):
-            print("Invalid selection. Please enter a valid number from the list.")
-
+            print("Invalid selection. Please enter a valid number.")
     print(f"\n✅ File selected: {filename}")
 
-    # Input with fallbacks
+    # Gathering other inputs
     image_url = input("Enter Image URL for all products: ").strip()
     vendor = input("Vendor name (default: Wilo): ").strip() or "Wilo"
     product_type = input("Product Type (default: Booster Pump Systems): ").strip() or "Booster Pump Systems"
@@ -69,33 +94,38 @@ def main():
         "collection": collection
     }
 
+    # Show config summary
     print("\nConfiguration Summary:")
     for k, v in config.items():
         if not callable(v):
             print(f"  {k}: {v}")
     print(f"  File: {filename}")
+
     proceed = input("Proceed with processing? [Y/n]: ").strip().lower()
     if proceed == 'n':
         print("❌ Operation cancelled.")
         sys.exit(0)
 
-    output_mode = input("\nChoose export type:\n  1. Full Shopify import (53 columns)\n  2. Description-only update\nSelect [1/2]: ")
-    if output_mode not in ['1', '2']:
+    mode_choice = input(
+        "\nChoose export type:\n  1. Full Shopify import (53 columns)\n  2. Description-only update\nSelect [1/2]: "
+    )
+    if mode_choice not in ['1', '2']:
         print("Invalid selection.")
         sys.exit(1)
+    mode = 'full' if mode_choice == '1' else 'description-only'
 
-    mode = 'full' if output_mode == '1' else 'description-only'
-
+    # Process and export
     print("\nProcessing file...")
     start = time.time()
     try:
         output_path = process_file(filename, config, mode)
         print(f"\n✅ Export complete: {output_path}")
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ Error: {e}")
         sys.exit(1)
 
     print(f"⏱️ Time taken: {round(time.time() - start, 2)}s")
+
 
 if __name__ == "__main__":
     main()
