@@ -45,7 +45,7 @@ def main():
     # Input with fallbacks
     image_url = input("Enter Image URL for all products: ").strip()
     vendor = input("Vendor name (default: Wilo): ").strip() or "Wilo"
-    product_type = input("Product category (default: Booster Pump Systems): ").strip() or "Booster Pump Systems"
+    product_type = input("Product Type (default: Booster Pump Systems): ").strip() or "Booster Pump Systems"
     collection = input("Enter Collection (e.g., Helix V, MVI): ").strip() or "General"
 
     config = {

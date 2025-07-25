@@ -23,3 +23,6 @@ python cli.py
 ## Output
 - Exports to `/exports`
 - Logs errors to `/exports/errors_<timestamp>.log`
+
+## Branch 2 (processor_no_weight.py)
+- Weight is being Set to 0 and Removed from Body and Requires Shipping is False to make it into a Digital Product
