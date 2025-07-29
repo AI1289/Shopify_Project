@@ -1,9 +1,3 @@
-# processor.py
-#
-# Shopify Import File Generator
-# Transforms supplier Excel/CSV data into a valid Shopify import CSV
-# with support for pricing formulas, SEO logic, variant grouping, and error handling.
-
 import os
 import pandas as pd
 import numpy as np
@@ -17,7 +11,7 @@ def safe_eval(expr, context):
         allowed = (
             ast.Expression, ast.BinOp, ast.Num, ast.Name, ast.Load, ast.UnaryOp,
             ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.USub,
-            ast.Call, ast.FormattedValue, ast.JoinedStr, ast.Constant
+            ast.Call, ast.FormattedValue, ast.JoinedStr, ast.Constant  # ← THIS IS CRUCIAL
         )
         for node in ast.walk(tree):
             if not isinstance(node, allowed):
@@ -26,24 +20,21 @@ def safe_eval(expr, context):
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
 
+
 SUPPORTED_EXT = ['.csv', '.xls', '.xlsx']
 
 SHOPIFY_HEADERS = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
     'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
-    'Variant Inventory Policy', 'Variant Fulfillment Service',
-    'Variant Price', 'Variant Compare At Price',
-    'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode',
-    'Product Category',
-    'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card',
-    'SEO Title', 'SEO Description',
+    'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
+    'Variant Cost', 'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode',
+    'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description',
     'Google Shopping / Google Product Category', 'Google Shopping / Gender', 'Google Shopping / Age Group',
     'Google Shopping / MPN', 'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels',
-    'Google Shopping / Condition', 'Google Shopping / Custom Product',
-    'Google Shopping / Custom Label 0', 'Google Shopping / Custom Label 1',
-    'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3', 'Google Shopping / Custom Label 4',
-    'Variant Image', 'Variant Weight Unit', 'Variant Tax Code',
+    'Google Shopping / Condition', 'Google Shopping / Custom Product', 'Google Shopping / Custom Label 0',
+    'Google Shopping / Custom Label 1', 'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3',
+    'Google Shopping / Custom Label 4', 'Variant Image', 'Variant Weight Unit', 'Variant Tax Code',
     'Cost per item', 'Price / International', 'Compare At Price / International', 'Status'
 ]
 
@@ -78,13 +69,13 @@ def sanitize_handle(name):
     return name.strip().lower().replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
 
 def build_description(row, config, col_model, col_voltage, col_power, col_weight):
-    desc = f"<p><strong>Model: </strong> {row[col_model]}<br>"
-    desc += f"<strong>Voltage: </strong> {row[col_voltage]}<br>"
-    desc += f"<strong>Power: </strong> {row[col_power]} HP<br>"
-    desc += f"<strong>Weight: </strong> {row[col_weight]} lbs</p>"
+    desc = f"<p><strong>Model:</strong> {row[col_model]}<br>"
+    desc += f"<strong>Voltage:</strong> {row[col_voltage]}<br>"
+    desc += f"<strong>Power:</strong> {row[col_power]} HP<br>"
+    desc += f"<strong>Weight:</strong> {row[col_weight]} lbs</p>"
     if float(row[col_weight]) > config['weight_threshold']:
         desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
-    desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View Manufacturer Website</a></p>'
+    desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View on Manufacturer Website</a></p>'
     return desc
 
 def process_file(filepath, config, mode):
@@ -94,7 +85,7 @@ def process_file(filepath, config, mode):
 
     df = pd.read_excel(filepath) if ext in ['.xls', '.xlsx'] else pd.read_csv(filepath)
     if len(df) > 1500:
-        print("Warning: File has more than 1500 rows.")
+        print("Warning: File has more than 1000 rows.")
 
     column_map = fuzzy_match_columns(df)
     df = df.rename(columns=column_map)
@@ -109,6 +100,7 @@ def process_file(filepath, config, mode):
     rows = []
     errors = []
 
+    # VARIANT GROUPING START
     grouped = df.groupby('Model')
     for model, group in grouped:
         valid_rows = []
@@ -117,15 +109,7 @@ def process_file(filepath, config, mode):
                 row = group.iloc[idx]
                 weight_raw = str(row[col_weight]).strip().replace(',', '')
                 part_number = str(row[col_sku]).strip()
-
-                # Compute list_price early
-                try:
-                    list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
-                except:
-                    list_price = 0.0
-
-                if weight_raw in ['—', '-', '', 'N/A', 'CF'] or part_number in ['—', '-', '', 'N/A', 'CF'] or not list_price:
-                    print(f"⚠️ Skipping row: Invalid weight, part number, or list price → Weight: {weight_raw}, SKU: {part_number}, Price: {list_price}")
+                if weight_raw in ['—', '-', '', 'N/A', 'CF'] or part_number in ['—', '-', '', 'N/A', 'CF']:
                     continue
                 valid_rows.append(idx)
             except:
@@ -141,7 +125,7 @@ def process_file(filepath, config, mode):
             part_number = str(row[col_sku]).strip()
 
             try:
-                weight = int(str(row[col_weight]).split('.')[0])  # truncate to left of decimal & override Excel’s float representation cleanly
+                weight = float(weight_raw)
             except:
                 continue
 
@@ -152,15 +136,12 @@ def process_file(filepath, config, mode):
 
             price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
+            grams = int(round(safe_eval(config.get('grams_formula', 'weight * 453.592'), {'weight': weight}), 4))
 
-            # grams = safe_eval(config.get('grams_formula', 'int(round(weight * 453.592))'), {'weight': weight})
-            # grams = int(round(int(row[col_weight]) * 453.592))
-            grams = int(round(float(row[col_weight]) * 453.592))
-
-
-            title = f"{model}"
+            title = f"{model} ({voltage})"
             description = build_description(row, config, col_model, col_voltage, col_power, col_weight)
 
+            # --- Safe context for evaluating SEO formulas ---
             context = {
                 'collection': config['collection'],
                 'model': model,
@@ -169,8 +150,51 @@ def process_file(filepath, config, mode):
                 'description': description,
                 'price': price
             }
-            seo_title = safe_eval(config.get('seo_title_formula'), context)
-            seo_description = safe_eval(config.get('seo_description_formula'), context)
+
+            seo_title = safe_eval(
+                config.get('seo_title_formula',
+                "f\"{collection} {model} – {vendor} {collection} Series {voltage}\""),
+                context
+            )
+
+            seo_description = safe_eval(
+                config.get('seo_description_formula',
+                "f\"{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\""),
+                context
+            )
+
+            vendor_name = safe_eval(
+                config.get('vendor_formula', "'{vendor}'"),
+                {'vendor': config['vendor']}
+            )
+
+            product_type = safe_eval(
+                config.get('product_type_formula', "'{product_type}'"),
+                {'product_type': config['product_type']}
+            )
+
+
+            # --- Safe context for evaluating SEO formulas ---
+            context = {
+                'collection': config['collection'],
+                'model': model,
+                'vendor': config['vendor'],
+                'voltage': voltage,
+                'description': description,
+                'price': price
+            }
+
+            seo_title = safe_eval(
+                config.get('seo_title_formula',
+                "f'{collection} {model} – {vendor} {collection} Series {voltage}'"),
+                context
+            )
+
+            seo_description = safe_eval(
+                config.get('seo_description_formula',
+                "f'{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.'"),
+                context
+            )
 
             vendor_name = safe_eval(config.get('vendor_formula', "'{vendor}'"), {'vendor': config['vendor']})
             product_type = safe_eval(config.get('product_type_formula', "'{product_type}'"), {'product_type': config['product_type']})
@@ -193,16 +217,16 @@ def process_file(filepath, config, mode):
                 'Option3 Value': '',
                 'Variant SKU': part_number,
                 'Variant Grams': grams,
-                'Variant Inventory Tracker': '',
+                'Variant Inventory Tracker': 'shopify',
                 'Variant Inventory Qty': '',
-                'Variant Inventory Policy': 'continue',
+                'Variant Inventory Policy': 'deny',
                 'Variant Fulfillment Service': 'manual',
                 'Variant Price': price,
                 'Variant Compare At Price': list_price,
+                'Variant Cost': cost,
                 'Variant Requires Shipping': requires_shipping,
                 'Variant Taxable': 'TRUE',
                 'Variant Barcode': '',
-                'Product Category': config.get('product_category', ''),
                 'Image Src': config['image_url'] if i == 0 else '',
                 'Image Position': 1 if i == 0 else '',
                 'Image Alt Text': '' if i > 0 else title,
@@ -233,6 +257,7 @@ def process_file(filepath, config, mode):
                 }
 
             rows.append(row_dict)
+    # VARIANT GROUPING END
 
     if not rows:
         raise Exception("No valid rows to export.")
@@ -244,8 +269,7 @@ def process_file(filepath, config, mode):
     out_file = os.path.join(outdir, f"shopify_import_{ts}.csv") if mode == 'full' \
         else os.path.join(outdir, f"shopify_descriptions_{ts}.csv")
 
-    columns = SHOPIFY_HEADERS if mode == 'full' else ['Handle', 'Body (HTML)']
-    pd.DataFrame(rows, columns=columns).to_csv(out_file, index=False)
+    pd.DataFrame(rows, columns=SHOPIFY_HEADERS if mode == 'full' else rows[0].keys()).to_csv(out_file, index=False)
 
     if errors:
         error_log = os.path.join(outdir, f"errors_{ts}.log")
