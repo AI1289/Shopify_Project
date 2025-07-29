@@ -5,5 +5,7 @@
   "vendor_formula": "vendor",
   "product_type_formula": "product_type",
   "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series {voltage}'",
-  "seo_description_formula": "f\"{collection} {model} {description} {price} USD\\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\""
+  "seo_description_formula": "f\"{collection} {model} {description} {price} USD\\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\"",
+  "description_include_columns": ["Model", "Voltage", "Power"],
+  "description_exclude_columns": ["Weight lbs", "Article Number", "Handle", "Vendor"]
 }
