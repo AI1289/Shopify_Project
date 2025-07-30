@@ -60,6 +60,10 @@ def main():
 
     # 4. Load formulas/config
     config = load_formulas()
+    # ==== ADD DEBUG PRINTS HERE ====
+    print("DEBUG: variant_option_fields in config:", config.get("variant_option_fields"))
+    print("DEBUG: all_variant_fields in config:", config.get("all_variant_fields"))
+    # ==== END DEBUG PRINTS ====
     config['vendor'] = vendor
     config['product_type'] = product_type
     config['collection'] = collection

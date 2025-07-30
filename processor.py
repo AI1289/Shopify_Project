@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -122,6 +123,8 @@ def process_file(filepath, config, mode):
         raise Exception("Unsupported file format.")
 
     df = pd.read_excel(filepath) if ext in ['.xls', '.xlsx'] else pd.read_csv(filepath)
+    df.columns = [re.sub(r'\s+', ' ', col).strip() for col in df.columns]
+
     if len(df) > 1500:
         print("Warning: File has more than 1500 rows.")
 
@@ -177,7 +180,7 @@ def process_file(filepath, config, mode):
                 weight = 0.0
 
             grams = safe_eval(config.get('grams_formula', 'round(weight * 453.592)'), {'weight': weight})
-            price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
+            price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.15'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
 
             # --- Build unified context for all formulas ---
@@ -207,7 +210,7 @@ def process_file(filepath, config, mode):
 
             row_dict = {
                 'Handle': handle,
-                'Title': title,
+                'Title': title + " Atmos TERA-SCH-HE ( Mechanical Seal)",
                 'Body (HTML)': description if mode == 'full' else '',
                 'Vendor': config['vendor'],
                 'Type': config['product_type'],
@@ -261,7 +264,9 @@ def process_file(filepath, config, mode):
                 }
 
             # --- DYNAMIC PER-PRODUCT VARIANT LOGIC ---
-            ALL_OPTION_FIELDS = config.get('all_variant_fields', ['Power HP', 'Motor_Voltage', 'Build'])
+            ALL_OPTION_FIELDS = config.get('variant_option_fields')
+            if not ALL_OPTION_FIELDS:
+                raise Exception("You must specify 'variant_option_fields' in your formulas.json config! (No default used)")
             # Detect which options are usable for this product (group)
             valid_option_fields = []
             for field in ALL_OPTION_FIELDS:
@@ -289,10 +294,10 @@ def process_file(filepath, config, mode):
             # --- END DYNAMIC LOGIC ---
 
             # Using SKU Logic
-            if part_number in ("", "CF", "N/A", "—", "-") or pd.isnull(part_number):
-                row_dict['Variant SKU'] = generate_shopify_sku(row, config)
-            else:
-                row_dict['Variant SKU'] = part_number
+            sku = row.get('Article Number', '')
+            if pd.isnull(sku) or str(sku).strip().upper() in ("", "CF", "N/A", "—", "-"):
+                sku = generate_shopify_sku(row, config)
+            row_dict['Variant SKU'] = sku if sku else ""
             # Add to rows
             rows.append(row_dict)
 

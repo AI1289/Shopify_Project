@@ -33,6 +33,9 @@ DEFAULT_MAP = {
     'Article Number': ['Article Number', 'Part Number']
 }
 
+def clean_option(val):
+    return (pd.isnull(val) or str(val).strip().upper() in ("", "CF", "N/A", "—", "-"))
+
 def generate_shopify_sku(row, config, option_fields_key="variant_option_fields"):
     """
     Build a globally unique SKU from product type, model, and all option values.
@@ -247,39 +250,41 @@ def process_file(filepath, config, mode):
                     'Handle': handle,
                     'Body (HTML)': description
                 }
-            # --- DYNAMIC VARIANT LOGIC BELOW ---
-            option_fields = config.get("variant_option_fields", ["Power HP", "Voltage"])
-
-            # Build option values, treating blanks/invalids as empty
+            # --- DYNAMIC PER-PRODUCT VARIANT LOGIC ---
+            ALL_OPTION_FIELDS = config.get('variant_option_fields')
+            if not ALL_OPTION_FIELDS:
+                raise Exception("You must specify 'variant_option_fields' in your formulas.json config! (No default used)")
+            # Detect which options are usable for this product (group)
+            valid_option_fields = []
+            for field in ALL_OPTION_FIELDS:
+                vals = group[field].dropna().astype(str).str.upper()
+                vals = vals[~vals.isin(['', 'CF', 'N/A', '—', '-'])]
+                if not vals.empty and vals.nunique() > 1:
+                    valid_option_fields.append(field)
+            # Assign Option1/2/3 Name/Value dynamically for each row
+            option_names = []
             option_values = []
-            for field in option_fields:
-                val = row.get(field, "")
-                if pd.isnull(val) or str(val).strip().upper() in ("", "CF", "N/A", "—", "-"):
-                    val = ""
-                option_values.append(val)
-
-            # If ALL option values are blank, treat as single product (no variants)
-            if all(v == "" for v in option_values):
-                for idx in range(3):
-                    row_dict[f'Option{idx+1} Name'] = ''
-                    row_dict[f'Option{idx+1} Value'] = ''
-            else:
-                # Option1 (first) must NOT be blank, otherwise skip this variant
-                if option_values[0] == "":
-                    continue  # skip this variant
-
-                # Option2 and Option3 CAN be blank!
-                for idx in range(3):
-                    opt_num = idx + 1
-                    row_dict[f'Option{opt_num} Name'] = option_fields[idx] if idx < len(option_fields) else ''
-                    row_dict[f'Option{opt_num} Value'] = option_values[idx] if idx < len(option_values) else ''
-            # --- END VARIANT LOGIC ---
+            for i in range(3):
+                if i < len(valid_option_fields):
+                    field = valid_option_fields[i]
+                    val = row.get(field, '')
+                    if clean_option(val):
+                        val = ''
+                    option_names.append(field)
+                    option_values.append(val)
+                else:
+                    option_names.append('')
+                    option_values.append('')
+            for idx in range(3):
+                row_dict[f'Option{idx+1} Name'] = option_names[idx]
+                row_dict[f'Option{idx+1} Value'] = option_values[idx]
+            # --- END DYNAMIC LOGIC ---
 
             # Using SKU Logic
-            if part_number in ("", "CF", "N/A", "—", "-") or pd.isnull(part_number):
-                row_dict['Variant SKU'] = generate_shopify_sku(row, config)
-            else:
-                row_dict['Variant SKU'] = part_number
+            sku = row.get('Article Number', '')
+            if pd.isnull(sku) or str(sku).strip().upper() in ("", "CF", "N/A", "—", "-"):
+                sku = generate_shopify_sku(row, config)
+            row_dict['Variant SKU'] = sku if sku else ""
             # Add to rows
             rows.append(row_dict)
 
