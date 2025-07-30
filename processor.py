@@ -185,15 +185,24 @@ def process_file(filepath, config, mode):
 
             # --- Build unified context for all formulas ---
             row_context = dict(row)
+
+            # --- # Adding dynamic Model field  ---
             if config:
                 row_context.update({k: v for k, v in config.items()})
-            # Add all calculated/dynamic fields you need:
-            title = str(model)  # Assign title as model name or adjust as needed
+            row_context['model'] = row.get('Model', '')
+
+            # Adding dynamic Title field 
+            if "title_formula" in config:
+                title = safe_eval(config["title_formula"], row_context)
+            else:
+                title = str(row.get('Model', ''))
+
+            row_context['title'] = title
             row_context['price'] = price
             row_context['grams'] = grams
             row_context['cost'] = cost
-            row_context['title'] = title
-            row_context['model'] = model
+            # row_context['title'] = title
+            # row_context['model'] = model
             row_context['voltage'] = voltage
             row_context['description'] = ''  # Placeholder (will set real description next)
 
@@ -210,7 +219,7 @@ def process_file(filepath, config, mode):
 
             row_dict = {
                 'Handle': handle,
-                'Title': title + " Atmos TERA-SCH-HE ( Mechanical Seal)",
+                'Title': title,
                 'Body (HTML)': description if mode == 'full' else '',
                 'Vendor': config['vendor'],
                 'Type': config['product_type'],
@@ -265,7 +274,8 @@ def process_file(filepath, config, mode):
 
             # --- DYNAMIC PER-PRODUCT VARIANT LOGIC ---
             ALL_OPTION_FIELDS = config.get('variant_option_fields')
-            if not ALL_OPTION_FIELDS:
+            print("DEBUG (processor): variant_option_fields:", config.get('variant_option_fields'))
+            if ALL_OPTION_FIELDS is None:
                 raise Exception("You must specify 'variant_option_fields' in your formulas.json config! (No default used)")
             # Detect which options are usable for this product (group)
             valid_option_fields = []

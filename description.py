@@ -39,9 +39,15 @@ def generate_description(row: dict, seo_formula: str, config=None) -> str:
 
     desc = "<p>"
     for col in includes:
-        if col in row and pd.notna(row[col]) and str(row[col]).strip():
+        val = row.get(col, None)
+        if (
+            col not in config.get('description_exclude_columns', [])
+            and isinstance(val, (str, float, int, bool, np.generic))
+            and pd.notna(val)
+            and str(val).strip()
+        ):
             label = col.replace('_', ' ')
-            desc += f"<strong>{label}: </strong> {row[col]}<br>"
+            desc += f"<strong>{label}: </strong> {val}<br>"
     desc += "</p>"
 
     # Do not auto-add any other fields!

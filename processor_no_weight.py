@@ -173,18 +173,30 @@ def process_file(filepath, config, mode):
             price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.15'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
 
-            title = f"{model}"
             # --- Build unified context for all formulas ---
             row_context = dict(row)
+
+            # --- # Adding dynamic Model field  ---
             if config:
                 row_context.update({k: v for k, v in config.items()})
+            row_context['model'] = row.get('Model', '')
+
+            # Adding dynamic Title field 
+            if "title_formula" in config:
+                title = safe_eval(config["title_formula"], row_context)
+            else:
+                title = str(row.get('Model', ''))
+
+            row_context['title'] = title
             row_context['price'] = price
             row_context['grams'] = grams
             row_context['cost'] = cost
-            row_context['title'] = title
-            row_context['model'] = model
+            # row_context['title'] = title
+            # row_context['model'] = model
             row_context['voltage'] = voltage
-            row_context['description'] = ''  # Placeholder
+            row_context['description'] = ''  # Placeholder (will set real description next)
+
+
                 # --- Generate description and update context ---
             description = generate_description(row_context, config.get('seo_description_formula'), config)
             row_context['description'] = description
