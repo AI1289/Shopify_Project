@@ -4,13 +4,16 @@
   "grams_formula": "round(weight * 453.592, 4)",
   "vendor_formula": "vendor",
   "product_type_formula": "product_type",
-  "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series {voltage}'",
+  "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series'",
   "seo_description_formula": "f\"{collection} {model} {description} ${price} USD, \\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\"",
-  "description_include_columns": ["Model", "Voltage", "Power HP", "Weight lbs", "Flang Type", "Volute"],
+  "description_include_columns": ["Model", "Item", "Spare Parts"],
   "description_exclude_columns": ["Handle", "Article Number", "pricing_formula", "cost_formula", "grams_formula", "seo_title_formula", "seo_description_formula", "vendor_formula", "product_type_formula", "image_url", "product_category", "price", "grams", "cost", "title", "collection", "vendor", "product_type"],
 
   "variant_option_fields":  [],
 
-  "title_formula": "f'{model} - High Efficiency Smart Circulators'"
+  "title_formula": "f'{model} - High Efficiency Smart Circulators Spare Parts'",
+
+  "required_columns": ["Model", "List Price", "Article Number"]
+
 
 }

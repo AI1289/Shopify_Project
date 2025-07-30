@@ -62,8 +62,8 @@ def main():
     config = load_formulas()
 
     # ==== ADD DEBUG PRINTS HERE ====
-    print("DEBUG: Loaded config keys:", list(config.keys()))
-    print("DEBUG: variant_option_fields value:", config.get('variant_option_fields'))
+    # print("DEBUG: Loaded config keys:", list(config.keys()))
+    # print("DEBUG: variant_option_fields value:", config.get('variant_option_fields'))
     # ==== END DEBUG PRINTS ====
     config['vendor'] = vendor
     config['product_type'] = product_type

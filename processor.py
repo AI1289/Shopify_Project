@@ -23,16 +23,56 @@ SHOPIFY_HEADERS = [
     'Cost per item', 'Price / International', 'Compare At Price / International', 'Status'
 ]
 
-FUZZY_THRESHOLD = 70
+# FUZZY_THRESHOLD = 70
 
-DEFAULT_MAP = {
-    'Model': ['Model'],
-    'Voltage': ['Voltage'],
-    'Power': ['Power HP', 'Individual Pump Power (HP)'],
-    'Weight': ['Weight lbs'],
-    'List Price': ['List Price'],
-    'Article Number': ['Article Number', 'Part Number']
-}
+# DEFAULT_MAP = {
+#     'Model': ['Model'],
+#     'Voltage': ['Voltage'],
+#     'Power': ['Power HP', 'Individual Pump Power (HP)'],
+#     'Weight': ['Weight lbs'],
+#     'List Price': ['List Price'],
+#     'Article Number': ['Article Number', 'Part Number']
+# }
+
+def fuzzy_match_columns(df, config):
+    """
+    Map only the columns listed in config['required_columns'] and config['variant_option_fields'] (if any).
+    """
+    from fuzzywuzzy import fuzz
+    FUZZY_THRESHOLD = 70
+
+    # What do we need for this batch?
+    required = config.get("required_columns", [])
+    variant_fields = config.get("variant_option_fields", [])
+    fields_needed = list(set(required + variant_fields))
+
+    # Optionally, you can update DEFAULT_MAP to include aliases only for these fields
+    DEFAULT_ALIASES = {
+        'Model': ['Model'],
+        'Voltage': ['Voltage'],
+        'Power': ['Power HP', 'Individual Pump Power (HP)'],
+        'Weight lbs': ['Weight lbs', 'Weight'],
+        'List Price': ['List Price'],
+        'Article Number': ['Article Number', 'Part Number']
+        # ... add any other field-specific aliases
+    }
+
+    mapping = {}
+    for field in fields_needed:
+        aliases = DEFAULT_ALIASES.get(field, [field])
+        found = False
+        for alias in aliases:
+            for col in df.columns:
+                score = fuzz.token_set_ratio(col.lower(), alias.lower())
+                if score >= FUZZY_THRESHOLD:
+                    mapping[field] = col
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            raise Exception(f"Missing required column: {field}")
+    return mapping
 
 def clean_option(val):
     return (pd.isnull(val) or str(val).strip().upper() in ("", "CF", "N/A", "—", "-"))
@@ -97,21 +137,21 @@ def safe_eval(expr, context):
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
 
-def fuzzy_match_columns(df):
-    mapping = {}
-    for key, aliases in DEFAULT_MAP.items():
-        for alias in aliases:
-            for col in df.columns:
-                score = fuzz.token_set_ratio(col.lower(), alias.lower())
-                if score >= FUZZY_THRESHOLD:
-                    mapping[key] = col
-                    break
-            if key in mapping:
-                break
-    missing = [key for key in DEFAULT_MAP if key not in mapping]
-    if missing:
-        raise Exception(f"Missing required columns: {missing}")
-    return mapping
+# def fuzzy_match_columns(df):
+#     mapping = {}
+#     for key, aliases in DEFAULT_MAP.items():
+#         for alias in aliases:
+#             for col in df.columns:
+#                 score = fuzz.token_set_ratio(col.lower(), alias.lower())
+#                 if score >= FUZZY_THRESHOLD:
+#                     mapping[key] = col
+#                     break
+#             if key in mapping:
+#                 break
+#     missing = [key for key in DEFAULT_MAP if key not in mapping]
+#     if missing:
+#         raise Exception(f"Missing required columns: {missing}")
+#     return mapping
 
 def sanitize_handle(name):
     return name.strip().lower().replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
@@ -128,12 +168,12 @@ def process_file(filepath, config, mode):
     if len(df) > 1500:
         print("Warning: File has more than 1500 rows.")
 
-    column_map = fuzzy_match_columns(df)
+    column_map = fuzzy_match_columns(df, config)
     df = df.rename(columns=column_map)
 
     col_model = column_map['Model']
-    col_voltage = column_map['Voltage']
-    col_power = column_map['Power']
+    col_voltage = column_map.get('Voltage')
+    col_power = column_map.get('Power')
     col_weight = column_map['Weight']
     col_price = column_map['List Price']
     col_sku = column_map['Article Number']
@@ -166,7 +206,7 @@ def process_file(filepath, config, mode):
         handle = sanitize_handle(model)
         for i, row_idx in enumerate(valid_rows):
             row = group.iloc[row_idx]
-            voltage = str(row[col_voltage]).strip()
+            voltage = str(row[col_voltage]).strip() if col_voltage else ''
             part_number = str(row[col_sku]).strip()
 
             try:
@@ -214,8 +254,7 @@ def process_file(filepath, config, mode):
             seo_title = safe_eval(config.get('seo_title_formula'), row_context)
             seo_description = safe_eval(config.get('seo_description_formula'), row_context)
 
-            requires_shipping_bool = weight > config.get('weight_threshold', 150)
-            requires_shipping = 'TRUE' if requires_shipping_bool else 'FALSE'
+            requires_shipping = 'FALSE' if weight > config.get('weight_threshold', 150) else 'TRUE'
 
             row_dict = {
                 'Handle': handle,
@@ -274,7 +313,6 @@ def process_file(filepath, config, mode):
 
             # --- DYNAMIC PER-PRODUCT VARIANT LOGIC ---
             ALL_OPTION_FIELDS = config.get('variant_option_fields')
-            print("DEBUG (processor): variant_option_fields:", config.get('variant_option_fields'))
             if ALL_OPTION_FIELDS is None:
                 raise Exception("You must specify 'variant_option_fields' in your formulas.json config! (No default used)")
             # Detect which options are usable for this product (group)
