@@ -1,5 +1,6 @@
 import ast
 import pandas as pd
+import numpy as np
 
 SHOPIFY_HEADERS = {
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
@@ -32,16 +33,10 @@ def safe_eval(expr: str, context: dict) -> str:
         return f"[Description Error: {e} in: {expr}]"
 
 def generate_description(row: dict, seo_formula: str, config=None) -> str:
-    """
-    Build HTML Shopify description, top fields first, then any others except excluded ones.
-    """
-    # Dynamic field selection from config or fallback
     includes = config.get('description_include_columns', ['Model', 'Voltage', 'Power']) if config else ['Model', 'Voltage', 'Power']
     excludes = set(config.get('description_exclude_columns', [])) if config else set()
     excludes |= SHOPIFY_HEADERS | {None}
-    includes_set = set(includes)
 
-    # Add included fields at the top (fixed order)
     desc = "<p>"
     for col in includes:
         if col in row and pd.notna(row[col]) and str(row[col]).strip():
@@ -49,23 +44,15 @@ def generate_description(row: dict, seo_formula: str, config=None) -> str:
             desc += f"<strong>{label}: </strong> {row[col]}<br>"
     desc += "</p>"
 
-    # Add all other eligible columns as their own block
-    for key, value in row.items():
-        if (
-            key in includes_set or
-            key in excludes or
-            pd.isna(value) or
-            str(value).strip() == ''
-        ):
-            continue
-        desc += f"<p><strong>{key}: </strong> {value}</p>"
+    # Do not auto-add any other fields!
 
-    # Optionally: footer/note/link, can be conditional if desired
     desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
     desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View Manufacturer Website</a></p>'
 
     context = {k.replace(' ', '_').lower(): v for k, v in row.items() if isinstance(k, str)}
     context.update(row)
+    if config:
+        context.update({k: v for k, v in config.items()})
     context['description'] = desc
 
     return safe_eval(seo_formula, context).strip()

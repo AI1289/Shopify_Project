@@ -33,6 +33,48 @@ DEFAULT_MAP = {
     'Article Number': ['Article Number', 'Part Number']
 }
 
+def generate_shopify_sku(row, config, option_fields_key="variant_option_fields"):
+    """
+    Build a globally unique SKU from product type, model, and all option values.
+    Cleans up spaces and punctuation for a Shopify-friendly SKU.
+
+    Args:
+        row (dict or pd.Series): The source row data.
+        config (dict): The current formulas/config, must include variant_option_fields.
+        option_fields_key (str): Key in config for option fields.
+
+    Returns:
+        str: Unique, uppercase SKU string.
+    """
+    def clean(val):
+        # Remove spaces, brackets, slashes, dashes, and make uppercase
+        return str(val).replace(' ', '').replace('(', '').replace(')', '').replace('&', '').replace('/', '').replace('-', '').upper()
+
+    sku_parts = []
+
+    # 1. Product Type
+    prod_type = row.get('Type', '')
+    if pd.notnull(prod_type) and str(prod_type).strip():
+        sku_parts.append(clean(prod_type))
+
+    # 2. Model
+    model = row.get('Model', '')
+    if pd.notnull(model) and str(model).strip():
+        sku_parts.append(clean(model))
+
+    # 3. Variant options (from config)
+    option_fields = config.get(option_fields_key, [])
+    for field in option_fields:
+        val = row.get(field, "")
+        if pd.notnull(val) and str(val).strip().upper() not in ("", "CF", "N/A", "—", "-"):
+            sku_parts.append(clean(val))
+
+    # 4. Join for final SKU
+    return "-".join(sku_parts)
+
+# --- USAGE IN YOUR EXPORT LOOP ---
+# row_dict['Variant SKU'] = generate_shopify_sku(row, config)
+
 def safe_eval(expr, context):
     import ast
     try:
@@ -94,19 +136,21 @@ def process_file(filepath, config, mode):
     for model, group in grouped:
         valid_rows = []
         for idx in range(len(group)):
-            try:
-                row = group.iloc[idx]
-                part_number = str(row[col_sku]).strip()
+            row = group.iloc[idx]
+            part_number = str(row[col_sku]).strip()
+            price_raw = str(row[col_price]).strip()
+            # Skip any row with 'CF', '-', '', 'N/A', or '—' as price or part_number
+            if price_raw in ['—', '-', '', 'N/A', 'CF']:
+                list_price = 0.0
+            else:
                 try:
-                    list_price = float(row[col_price]) if pd.notna(row[col_price]) else 0.0
+                    list_price = float(price_raw)
                 except:
                     list_price = 0.0
 
-                if not part_number or not list_price:
-                    continue
-                valid_rows.append(idx)
-            except:
+            if part_number in ['—', '-', '', 'N/A', 'CF'] or not list_price:
                 continue
+            valid_rows.append(idx)
         if not valid_rows:
             continue
 
@@ -123,22 +167,28 @@ def process_file(filepath, config, mode):
             except:
                 list_price = 0.0
 
-            price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.21'), {'list_price': list_price})
+            price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.15'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
 
             title = f"{model}"
-            description = generate_description(row, config.get('seo_description_formula'), config)
+            # --- Build unified context for all formulas ---
+            row_context = dict(row)
+            if config:
+                row_context.update({k: v for k, v in config.items()})
+            row_context['price'] = price
+            row_context['grams'] = grams
+            row_context['cost'] = cost
+            row_context['title'] = title
+            row_context['model'] = model
+            row_context['voltage'] = voltage
+            row_context['description'] = ''  # Placeholder
+                # --- Generate description and update context ---
+            description = generate_description(row_context, config.get('seo_description_formula'), config)
+            row_context['description'] = description
 
-            context = {
-                'collection': config['collection'],
-                'model': model,
-                'vendor': config['vendor'],
-                'voltage': voltage,
-                'description': description,
-                'price': price
-            }
-            seo_title = safe_eval(config.get('seo_title_formula'), context)
-            seo_description = safe_eval(config.get('seo_description_formula'), context)
+            # --- SEO fields use same context ---
+            seo_title = safe_eval(config.get('seo_title_formula'), row_context)
+            seo_description = safe_eval(config.get('seo_description_formula'), row_context)
 
             # Digital: Requires Shipping always FALSE
             requires_shipping = 'FALSE'
@@ -151,8 +201,8 @@ def process_file(filepath, config, mode):
                 'Type': config['product_type'],
                 'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
                 'Published': 'FALSE',
-                'Option1 Name': 'Voltage',
-                'Option1 Value': voltage,
+                'Option1 Name': '',
+                'Option1 Value': '',
                 'Option2 Name': '',
                 'Option2 Value': '',
                 'Option3 Name': '',
@@ -197,7 +247,40 @@ def process_file(filepath, config, mode):
                     'Handle': handle,
                     'Body (HTML)': description
                 }
+            # --- DYNAMIC VARIANT LOGIC BELOW ---
+            option_fields = config.get("variant_option_fields", ["Power HP", "Voltage"])
 
+            # Build option values, treating blanks/invalids as empty
+            option_values = []
+            for field in option_fields:
+                val = row.get(field, "")
+                if pd.isnull(val) or str(val).strip().upper() in ("", "CF", "N/A", "—", "-"):
+                    val = ""
+                option_values.append(val)
+
+            # If ALL option values are blank, treat as single product (no variants)
+            if all(v == "" for v in option_values):
+                for idx in range(3):
+                    row_dict[f'Option{idx+1} Name'] = ''
+                    row_dict[f'Option{idx+1} Value'] = ''
+            else:
+                # Option1 (first) must NOT be blank, otherwise skip this variant
+                if option_values[0] == "":
+                    continue  # skip this variant
+
+                # Option2 and Option3 CAN be blank!
+                for idx in range(3):
+                    opt_num = idx + 1
+                    row_dict[f'Option{opt_num} Name'] = option_fields[idx] if idx < len(option_fields) else ''
+                    row_dict[f'Option{opt_num} Value'] = option_values[idx] if idx < len(option_values) else ''
+            # --- END VARIANT LOGIC ---
+
+            # Using SKU Logic
+            if part_number in ("", "CF", "N/A", "—", "-") or pd.isnull(part_number):
+                row_dict['Variant SKU'] = generate_shopify_sku(row, config)
+            else:
+                row_dict['Variant SKU'] = part_number
+            # Add to rows
             rows.append(row_dict)
 
     if not rows:

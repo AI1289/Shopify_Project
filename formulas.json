@@ -6,6 +6,8 @@
   "product_type_formula": "product_type",
   "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series {voltage}'",
   "seo_description_formula": "f\"{collection} {model} {description} {price} USD\\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\"",
-  "description_include_columns": ["Model", "Voltage", "Power"],
-  "description_exclude_columns": ["Weight lbs", "Article Number", "Handle", "Vendor"]
+  "description_include_columns": ["Model", "Voltage", "Power HP", "Weight lbs", "Pole", "Phase", "Max Pressure PSI", "Motor", "Build"],
+  "description_exclude_columns": ["Handle", "Article Number", "pricing_formula", "cost_formula", "grams_formula", "seo_title_formula", "seo_description_formula", "vendor_formula", "product_type_formula", "image_url", "product_category", "price", "grams", "cost", "title", "collection", "vendor", "product_type"],
+
+  "variant_option_fields":  ["Build", "Motor_Voltage", "Power HP"]
 }
