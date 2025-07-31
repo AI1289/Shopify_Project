@@ -23,17 +23,6 @@ SHOPIFY_HEADERS = [
     'Cost per item', 'Price / International', 'Compare At Price / International', 'Status'
 ]
 
-# FUZZY_THRESHOLD = 70
-
-# DEFAULT_MAP = {
-#     'Model': ['Model'],
-#     'Voltage': ['Voltage'],
-#     'Power': ['Power HP', 'Individual Pump Power (HP)'],
-#     'Weight': ['Weight lbs'],
-#     'List Price': ['List Price'],
-#     'Article Number': ['Article Number', 'Part Number']
-# }
-
 def fuzzy_match_columns(df, config):
     """
     Map only the columns listed in config['required_columns'] and config['variant_option_fields'] (if any).
@@ -117,9 +106,6 @@ def generate_shopify_sku(row, config, option_fields_key="variant_option_fields")
     # 4. Join for final SKU
     return "-".join(sku_parts)
 
-# --- USAGE IN YOUR EXPORT LOOP ---
-# row_dict['Variant SKU'] = generate_shopify_sku(row, config)
-
 
 def safe_eval(expr, context):
     import ast
@@ -136,22 +122,6 @@ def safe_eval(expr, context):
         return eval(compile(tree, "<string>", "eval"), {}, context)
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
-
-# def fuzzy_match_columns(df):
-#     mapping = {}
-#     for key, aliases in DEFAULT_MAP.items():
-#         for alias in aliases:
-#             for col in df.columns:
-#                 score = fuzz.token_set_ratio(col.lower(), alias.lower())
-#                 if score >= FUZZY_THRESHOLD:
-#                     mapping[key] = col
-#                     break
-#             if key in mapping:
-#                 break
-#     missing = [key for key in DEFAULT_MAP if key not in mapping]
-#     if missing:
-#         raise Exception(f"Missing required columns: {missing}")
-#     return mapping
 
 def sanitize_handle(name):
     return name.strip().lower().replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
@@ -241,8 +211,6 @@ def process_file(filepath, config, mode):
             row_context['price'] = price
             row_context['grams'] = grams
             row_context['cost'] = cost
-            # row_context['title'] = title
-            # row_context['model'] = model
             row_context['voltage'] = voltage
             row_context['description'] = ''  # Placeholder (will set real description next)
 
@@ -265,7 +233,6 @@ def process_file(filepath, config, mode):
                 'Body (HTML)': description if mode == 'full' else '',
                 'Vendor': config['vendor'],
                 'Type': config['product_type'],
-                # 'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
                 'Published': 'FALSE',
                 'Option1 Name': '',
                 'Option1 Value': '',
@@ -299,7 +266,6 @@ def process_file(filepath, config, mode):
                 'Google Shopping / Custom Label 2': '',
                 'Google Shopping / Custom Label 3': '',
                 'Google Shopping / Custom Label 4': '',
-                # 'Variant Image': config['image_url'] if is_single_product or i == 0 else '',
                 'Variant Weight Unit': 'lb',
                 'Variant Tax Code': '',
                 'Cost per item': cost,
