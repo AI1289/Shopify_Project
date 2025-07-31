@@ -253,13 +253,16 @@ def process_file(filepath, config, mode):
             # Digital: Requires Shipping always FALSE
             requires_shipping = 'FALSE'
 
+            #Set bool for Image Src, Image Position, and Image Alt Text, Variant Image
+            is_single_product = not config.get('variant_option_fields')
+
             row_dict = {
                 'Handle': handle,
                 'Title': title,
                 'Body (HTML)': description if mode == 'full' else '',
                 'Vendor': config['vendor'],
                 'Type': config['product_type'],
-                'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
+                # 'Tags': f"{config['vendor']}, {config['collection']}-{voltage}",
                 'Published': 'FALSE',
                 'Option1 Name': '',
                 'Option1 Value': '',
@@ -279,9 +282,9 @@ def process_file(filepath, config, mode):
                 'Variant Taxable': 'TRUE',
                 'Variant Barcode': '',
                 'Product Category': config.get('product_category', ''),
-                'Image Src': config['image_url'] if i == 0 else '',
-                'Image Position': 1 if i == 0 else '',
-                'Image Alt Text': title if i == 0 else '',
+                'Image Src': config['image_url'] if is_single_product or i == 0 else '',
+                'Image Position': 1 if is_single_product or i == 0 else '',
+                'Image Alt Text': title if is_single_product or i == 0 else '',
                 'SEO Title': seo_title,
                 'SEO Description': seo_description,
                 'Google Shopping / Gender': '',
@@ -293,7 +296,7 @@ def process_file(filepath, config, mode):
                 'Google Shopping / Custom Label 2': '',
                 'Google Shopping / Custom Label 3': '',
                 'Google Shopping / Custom Label 4': '',
-                'Variant Image': config['image_url'] if i == 0 else '',
+                # 'Variant Image': config['image_url'] if i == 0 else '',
                 'Variant Weight Unit': 'lb',
                 'Variant Tax Code': '',
                 'Cost per item': cost,
@@ -302,11 +305,26 @@ def process_file(filepath, config, mode):
                 'Status': 'draft'
             }
 
+            # Adding Variant Image logic
+            if is_single_product:
+                row_dict['Variant Image'] = ''
+            else:
+                row_dict['Variant Image'] = config['image_url'] if i == 0 else ''
+
+            # Adding Dynamic Tag logic
+            tags_formula = config.get("tags_formula")
+            if tags_formula:
+                tags = eval(tags_formula, {}, row_context)
+            else:
+                tags = f"{config['vendor']}, {config['collection']}"
+            row_dict['Tags'] = tags
+
             if mode == 'description-only':
                 row_dict = {
                     'Handle': handle,
                     'Body (HTML)': description
                 }
+
             # --- DYNAMIC PER-PRODUCT VARIANT LOGIC ---
             ALL_OPTION_FIELDS = config.get('variant_option_fields')
             if ALL_OPTION_FIELDS is None:
