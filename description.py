@@ -58,7 +58,7 @@ def generate_description(row: dict, seo_formula: str, config=None) -> str:
         w = float(str(weight).replace(',', ''))
     except (ValueError, TypeError):
         w = 0
-    if w > 150:
+    if w > 150 or w < 1:
         desc += '<p><em>NOTE: We will contact you during order fulfilment to discuss shipping and handling costs for products weighing more than 150 pounds. These costs will be billed separately.</em></p>'
 
     desc += '<p><a href="https://wilo.com/en/overview.html" target="_blank">View Manufacturer Website</a></p>'

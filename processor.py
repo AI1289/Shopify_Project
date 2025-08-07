@@ -140,11 +140,13 @@ def process_file(filepath, config, mode):
 
     column_map = fuzzy_match_columns(df, config)
     df = df.rename(columns=column_map)
+    # print("DEBUG: DataFrame columns after renaming:", list(df.columns))
+    # print("DEBUG: column_map:", column_map)
 
     col_model = column_map['Model']
     col_voltage = column_map.get('Voltage')
     col_power = column_map.get('Power')
-    col_weight = column_map['Weight']
+    col_weight = column_map.get('Weight lbs') or column_map.get('Weight')
     col_price = column_map['List Price']
     col_sku = column_map['Article Number']
 
