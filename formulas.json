@@ -1,5 +1,5 @@
 {
-  "pricing_formula": "round((list_price * 0.7, 2)",
+  "pricing_formula": "round(list_price * 0.7, 2)",
   "cost_formula": "round(list_price * 0.5, 2)",
 
 
@@ -10,8 +10,8 @@
   "product_type_formula": "product_type",
   "seo_title_formula": "f'{model}'",
   "seo_description_formula": "f\"{description}\"",
-  "description_include_columns": ["Model", "Boiler HP", "Weight lbs", "Discharge Pressure PSI", "Pump Cap (GPM)", "Motor HP", "Rec Cap (Gal)", "Voltage"],
-  
+
+  "description_include_columns": ["Model"],
   "description_exclude_columns": ["Handle", "Article Number", "pricing_formula", "cost_formula", "grams_formula", "seo_title_formula", "seo_description_formula", "vendor_formula", "product_type_formula", "image_url", "product_category", "price", "grams", "cost", "title", "collection", "vendor", "product_type"],
   
   "tags_formula": "f'{vendor}, {collection}'",
