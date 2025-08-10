@@ -1,9 +1,28 @@
 {
-  "pricing_formula": "round(list_price * 0.36 * 1.15, 2)",
-  "cost_formula": "round(list_price * 0.36, 2)",
+  "pricing_formula": "round(list_price * 0.7, 2)",
+  "cost_formula": "round(list_price * 0.5, 2)",
+
+
+
+  
   "grams_formula": "round(weight * 453.592, 4)",
   "vendor_formula": "vendor",
   "product_type_formula": "product_type",
-  "seo_title_formula": "f'{collection} {model} - {vendor} {collection} Series {voltage}'",
-  "seo_description_formula": "f\"{collection} {model} {description} {price} USD\\nBuy {model} online. Durable, efficient booster pump system from {vendor}.\""
+  "seo_title_formula": "f'{model}'",
+  "seo_description_formula": "f\"{description}\"",
+
+  "description_include_columns": ["Model"],
+  "description_exclude_columns": ["Handle", "Article Number", "pricing_formula", "cost_formula", "grams_formula", "seo_title_formula", "seo_description_formula", "vendor_formula", "product_type_formula", "image_url", "product_category", "price", "grams", "cost", "title", "collection", "vendor", "product_type"],
+  
+  "tags_formula": "f'{vendor}, {collection}'",
+
+  "_comment" :"Spare Parts",
+
+  "variant_option_fields":  ["Voltage"],
+
+  "title_formula": "f'{model} '",
+
+  "required_columns": ["Model", "List Price", "Article Number", "Weight lbs", "Voltage"]
+
+
 }

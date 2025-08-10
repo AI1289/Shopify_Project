@@ -1,101 +1,108 @@
-
 import os
-import sys
-import pandas as pd
-import time
-from processor import process_file
 import json
+import sys
+import traceback
+import time
+import pandas as pd
 
-# Load formulas.json if present
-formulas = {}
-try:
-    with open("formulas.json", "r") as f:
-        formulas = json.load(f)
-        print("✅ Loaded formulas from formulas.json")
-except FileNotFoundError:
-    print("⚠️ formulas.json not found. Using default formulas.")
+# Import modern processors
+from processor import process_file as process_physical
+from processor_no_weight import process_file as process_digital
 
-def list_files():
-    files = [f for f in os.listdir('.') if f.endswith(('.csv', '.xls', '.xlsx'))]
-    if not files:
-        print("No input files found.")
+def load_formulas():
+    try:
+        with open('formulas.json', 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error reading formulas.json: {e}")
         sys.exit(1)
-    print("\nAvailable files:")
-    for i, file in enumerate(files):
-        print(f"  {i + 1}. {file}")
-    return files
 
 def main():
-    print("\n🚀 SHOPIFY IMPORT CLI TOOL v2")
-    print("=" * 60)
+    print("==== Shopify CLI Importer ====")
+    print("Welcome! This tool will help you convert your supplier spreadsheet into a Shopify-ready CSV.\n")
 
-    files = list_files()
-    filename = None
+    # 1. Choose product type
+    print("Select import mode:")
+    print(" 1. Physical products (with weight, shipping logic)")
+    print(" 2. Digital products (no weight/shipping)")
     while True:
-        choice = input("\nEnter file number to load: ")
-        try:
-            file_idx = int(choice) - 1
-            filename = files[file_idx]
+        mode_input = input("Enter 1 for physical or 2 for digital: ").strip()
+        if mode_input in ['1', '2']:
             break
-        except (IndexError, ValueError):
-            print("Invalid selection. Please enter a valid number from the list.")
+        print("Invalid selection. Please enter 1 or 2.")
+    is_physical = (mode_input == '1')
 
-    print(f"\n✅ File selected: {filename}")
+    # 2. Select input file
+    files = [f for f in os.listdir('.') if f.lower().endswith(('.csv', '.xls', '.xlsx')) and not f.startswith('~$')]
+    if not files:
+        print("No CSV/XLSX files found in current directory.")
+        sys.exit(1)
+    print("\nAvailable files:")
+    for idx, fname in enumerate(files, 1):
+        print(f"{idx}: {fname}")
+    while True:
+        try:
+            file_choice = int(input("Enter file number: ").strip())
+            if 1 <= file_choice <= len(files):
+                break
+            print(f"Enter a number between 1 and {len(files)}")
+        except ValueError:
+            print("Please enter a valid integer.")
+    in_file = files[file_choice - 1]
+    print(f"Selected: {in_file}")
 
-    # Input with fallbacks
-    image_url = input("Enter Image URL for all products: ").strip()
-    vendor = input("Vendor name (default: Wilo): ").strip() or "Wilo"
-    product_type = input("Product category (default: Booster Pump Systems): ").strip() or "Booster Pump Systems"
-    collection = input("Enter Collection (e.g., Helix V, MVI): ").strip() or "General"
+    # 3. Gather metadata from user
+    vendor = input("Vendor name: ").strip()
+    product_type = input("Product type: ").strip()
+    collection = input("Collection/Tag: ").strip()
+    image_url = input("Default image URL (can be blank): ").strip()
+    product_category = input("Product category (optional): ").strip()
 
-    config = {
-        "pricing_formula": formulas.get("pricing_formula", "round(list_price * 0.36 * 1.15, 2)"),
-        "cost_formula": formulas.get("cost_formula", "round(list_price * 0.36, 2)"),
-        "grams_formula": formulas.get("grams_formula", "round(weight * 453.592)"),
-        "vendor_formula": formulas.get("vendor_formula", "'{vendor}'"),
-        "product_type_formula": formulas.get("product_type_formula", "'{product_type}'"),
-        "seo_title_formula": formulas.get(
-            "seo_title_formula",
-            "f'{collection} {model} – {vendor} {collection} Series {voltage}'"
-        ),
-        "seo_description_formula": formulas.get(
-            "seo_description_formula",
-            "f'{collection} {model} {description} {price} USD\nBuy {model} online. Durable, efficient booster pump system from {vendor}.'"
-        ),
-        "weight_threshold": 150.0,
-        "image_url": image_url,
-        "vendor": vendor,
-        "product_type": product_type,
-        "collection": collection
-    }
+    # 4. Load formulas/config
+    config = load_formulas()
 
-    print("\nConfiguration Summary:")
+    # ==== ADD DEBUG PRINTS HERE ====
+    # print("DEBUG: Loaded config keys:", list(config.keys()))
+    # print("DEBUG: variant_option_fields value:", config.get('variant_option_fields'))
+    # ==== END DEBUG PRINTS ====
+    config['vendor'] = vendor
+    config['product_type'] = product_type
+    config['collection'] = collection
+    config['image_url'] = image_url
+    if product_category:
+        config['product_category'] = product_category
+
+    # 5. Show config summary
+    print("\n=== Config Summary ===")
     for k, v in config.items():
-        if not callable(v):
-            print(f"  {k}: {v}")
-    print(f"  File: {filename}")
-    proceed = input("Proceed with processing? [Y/n]: ").strip().lower()
-    if proceed == 'n':
-        print("❌ Operation cancelled.")
-        sys.exit(0)
+        print(f"{k}: {v}")
 
-    output_mode = input("\nChoose export type:\n  1. Full Shopify import (53 columns)\n  2. Description-only update\nSelect [1/2]: ")
-    if output_mode not in ['1', '2']:
-        print("Invalid selection.")
-        sys.exit(1)
+    # 6. Export mode
+    print("\nExport options:")
+    print(" 1. Full Shopify CSV (all fields)")
+    print(" 2. Description-only (Handle + HTML body)")
+    while True:
+        export_choice = input("Enter 1 or 2: ").strip()
+        if export_choice in ['1', '2']:
+            break
+        print("Invalid. Please enter 1 or 2.")
+    export_mode = 'full' if export_choice == '1' else 'description-only'
 
-    mode = 'full' if output_mode == '1' else 'description-only'
-
-    print("\nProcessing file...")
-    start = time.time()
+    # 7. Process file
+    print(f"\nProcessing file with {'physical' if is_physical else 'digital'} product logic...")
     try:
-        output_path = process_file(filename, config, mode)
-        print(f"\n✅ Export complete: {output_path}")
+        if is_physical:
+            out_file = process_physical(in_file, config, export_mode)
+        else:
+            out_file = process_digital(in_file, config, export_mode)
+        print(f"\n✅ Export complete: {out_file}\n")
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print("\n❌ Error during processing!")
+        traceback.print_exc()
         sys.exit(1)
 
-    print(f"⏱️ Time taken: {round(time.time() - start, 2)}s")
+    print("Thank you for using Shopify CLI Importer.")
+    time.sleep(1)
 
 if __name__ == "__main__":
     main()

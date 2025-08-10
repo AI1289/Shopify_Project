@@ -1,5 +1,4 @@
 import os
-import re
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -63,9 +62,9 @@ def fuzzy_match_columns(df, config):
             raise Exception(f"Missing required column: {field}")
     return mapping
 
+
 def clean_option(val):
     return (pd.isnull(val) or str(val).strip().upper() in ("", "CF", "N/A", "—", "-"))
-
 
 def generate_shopify_sku(row, config, option_fields_key="variant_option_fields"):
     """
@@ -106,7 +105,6 @@ def generate_shopify_sku(row, config, option_fields_key="variant_option_fields")
     # 4. Join for final SKU
     return "-".join(sku_parts)
 
-
 def safe_eval(expr, context):
     import ast
     try:
@@ -123,9 +121,9 @@ def safe_eval(expr, context):
     except Exception as e:
         raise ValueError(f"Invalid formula: {e}")
 
+
 def sanitize_handle(name):
     return name.strip().lower().replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
-
 
 def process_file(filepath, config, mode):
     ext = os.path.splitext(filepath)[1].lower()
@@ -133,22 +131,22 @@ def process_file(filepath, config, mode):
         raise Exception("Unsupported file format.")
 
     df = pd.read_excel(filepath) if ext in ['.xls', '.xlsx'] else pd.read_csv(filepath)
-    df.columns = [re.sub(r'\s+', ' ', col).strip() for col in df.columns]
-
     if len(df) > 1500:
         print("Warning: File has more than 1500 rows.")
 
     column_map = fuzzy_match_columns(df, config)
     df = df.rename(columns=column_map)
-    # print("DEBUG: DataFrame columns after renaming:", list(df.columns))
-    # print("DEBUG: column_map:", column_map)
 
     col_model = column_map['Model']
-    col_voltage = column_map.get('Voltage')
-    col_power = column_map.get('Power')
-    col_weight = column_map.get('Weight lbs') or column_map.get('Weight')
+    # col_voltage = column_map['Voltage']
+    # col_power = column_map['Power']
+    # col_weight = column_map['Weight']
     col_price = column_map['List Price']
     col_sku = column_map['Article Number']
+
+    col_voltage = column_map.get('Voltage')
+    col_power = column_map.get('Power')
+    col_weight = column_map.get('Weight lbs')
 
     rows = []
     errors = []
@@ -180,18 +178,14 @@ def process_file(filepath, config, mode):
             row = group.iloc[row_idx]
             voltage = str(row[col_voltage]).strip() if col_voltage else ''
             part_number = str(row[col_sku]).strip()
-
+            # Digital product: forcibly set weight and grams to 0
+            weight = 0.0
+            grams = 0
             try:
                 list_price = float(row[col_price]) if pd.notna(row[col_price]) and str(row[col_price]).strip() else 0.0
             except:
                 list_price = 0.0
 
-            try:
-                weight = float(str(row[col_weight]).replace(',', '').strip()) if pd.notna(row[col_weight]) else 0.0
-            except:
-                weight = 0.0
-
-            grams = safe_eval(config.get('grams_formula', 'round(weight * 453.592)'), {'weight': weight})
             price = safe_eval(config.get('pricing_formula', 'list_price * 0.36 * 1.15'), {'list_price': list_price})
             cost = safe_eval(config.get('cost_formula', 'list_price * 0.36'), {'list_price': list_price})
 
@@ -216,15 +210,17 @@ def process_file(filepath, config, mode):
             row_context['voltage'] = voltage
             row_context['description'] = ''  # Placeholder (will set real description next)
 
-            # --- Build Description using the unified context ---
-            description = generate_description(row_context, config.get('seo_description_formula'), config)
-            row_context['description'] = description  # Update with real description
 
-            # --- Build SEO fields using the same context ---
+                # --- Generate description and update context ---
+            description = generate_description(row_context, config.get('seo_description_formula'), config)
+            row_context['description'] = description
+
+            # --- SEO fields use same context ---
             seo_title = safe_eval(config.get('seo_title_formula'), row_context)
             seo_description = safe_eval(config.get('seo_description_formula'), row_context)
 
-            requires_shipping = 'FALSE' if weight > config.get('weight_threshold', 150) else 'TRUE'
+            # Digital: Requires Shipping always FALSE
+            requires_shipping = 'FALSE'
 
             #Set bool for Image Src, Image Position, and Image Alt Text, Variant Image
             is_single_product = not config.get('variant_option_fields')
@@ -334,7 +330,6 @@ def process_file(filepath, config, mode):
             # Add to rows
             rows.append(row_dict)
 
-
     if not rows:
         raise Exception("No valid rows to export.")
 
@@ -344,10 +339,8 @@ def process_file(filepath, config, mode):
 
     out_file = os.path.join(outdir, f"shopify_import_{ts}.csv") if mode == 'full' \
         else os.path.join(outdir, f"shopify_descriptions_{ts}.csv")
-    
 
     columns = SHOPIFY_HEADERS if mode == 'full' else ['Handle', 'Body (HTML)']
-    
     pd.DataFrame(rows, columns=columns).to_csv(out_file, index=False)
 
     if errors:
