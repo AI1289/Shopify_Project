@@ -39,6 +39,14 @@ def generate_description(row: dict, seo_formula: str, config=None) -> str:
     excludes = set(config.get('description_exclude_columns', [])) if config else set()
     excludes |= SHOPIFY_HEADERS | {None}
 
+
+    # --- BEGIN HARDCODED STERLCO BLOCK ---
+    desc = "<p>"
+    part_number = row.get('Article Number', '')
+
+    desc += f"<p><strong>Part Number: </strong>{part_number}</p>"
+    desc += "<p>Sterlco® atmospherically vented condensate tanks are designed for pumping hot condensate throughout the steam system. The 4600 Series steel unit is designed to suit many applications. Tanks sizes range from 8-714 gallons.</p>"
+    desc += "<ul>"
     desc = "<p>"
     for col in includes:
         val = row.get(col, None)
@@ -51,32 +59,11 @@ def generate_description(row: dict, seo_formula: str, config=None) -> str:
             label = col.replace('_', ' ')
             desc += f"<strong>{label}: </strong> {val}<br>"
     desc += "</p>"
-
-    # --- BEGIN HARDCODED STERLCO BLOCK ---
-    part_number = row.get('Article Number', '')
-    voltage = row.get('Voltage', '')
-    shipping_weight = row.get('Weight lbs', row.get('Weight', ''))
-    boiler_hp = row.get('Boiler HP', '')
-    discharge_pressure = row.get('Discharge Pressure PSI', '')
-    pump_cap = row.get('Pump Cap (GPM)', '')
-    motor_hp = row.get('Motor HP', '')
-    rec_cap = row.get('Rec Cap (Gal)', '')
-
-    desc += f"<p><strong>Part Number: {part_number}</strong></p>"
-    desc += "<p>Sterlco® atmospherically vented condensate tanks are designed for pumping hot condensate throughout the steam system. The 4300 Series stainless steel unit is designed for wash down duty, sterilization, and corrosive environment applications. Tanks sizes range from 8-714 gallons.</p>"
-    desc += "<ul>"
-    desc += f"<li>Voltage: {voltage}</li>"
-    desc += f"<li>Shipping Weight: {shipping_weight} lb</li>"
-    desc += f"<li>Boiler HP: {boiler_hp}</li>"
-    desc += f"<li>Discharge Pressure: {discharge_pressure} PSI</li>"
-    desc += f"<li>Pump Capacity: {pump_cap} GPM</li>"
-    desc += f"<li>Motor HP: {motor_hp}</li>"
-    desc += f"<li>Recirculation Capacity: {rec_cap} Gal</li>"
-    desc += "<li> The Sterlco® Centrifugal Pumps are capable of pumping hot condensate up to 200° F. These pumps are equipped with heavy-duty cast iron pump housing and bracket, along with a brass impeller to assure long operating life.</li>"
-    desc += "<li>Sterl-Seal” ceramic pump seal (250°F)</li>"
+    desc += "<li>Sterlco® K-series 2′ NPSH Pumps are designed to pump hot condensate up to 212° F. These pumps are equipped with a stainless steel impeller and inducer to assure long operating life.</li>"
+    desc += "<li>Carbon ceramic pump seal (300°F) with EPDM elastomers</li>"
     desc += "</ul>"
     desc += "<p><strong>Applications:</strong> Series Condensate Units, commercial HVAC, boiler rooms</p>"
-    desc += "<p><a href=\"https://www.sterlcosteam.com/product_category/products/\" target=\"_blank\">Manufacturer Reference</a> | <a href=\"https://www.sterlcosteam.com/wp-content/uploads/2019/01/ts-sterlco-4200-series-boiler-feed-pumps-final.pdf\" target=\"_blank\">Specs Sheet</a></p>"
+    desc += "<p><a href=\"https://www.sterlcosteam.com/product_category/products/\" target=\"_blank\">Manufacturer Reference</a> | <a href=\"https://www.sterlcosteam.com/wp-content/uploads/2024/06/TS-Sterlco-4600-Series-Condensate-Units_Rev06-10-2024.pdf\" target=\"_blank\">Specs Sheet</a></p>"
     desc += "<p><strong>Voltage Selection Guide:</strong></p>"
     desc += "<ul>"
     desc += "<li><strong>1/60/115-208-230</strong> - Single-phase motor for light commercial applications. Compatible with standard building electrical service.</li>"
